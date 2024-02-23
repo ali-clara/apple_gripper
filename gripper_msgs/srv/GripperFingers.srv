@@ -1,0 +1,5 @@
+# inputs
+bool set_fingers
+---
+# outputs
+bool result
