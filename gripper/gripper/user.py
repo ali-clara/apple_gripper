@@ -32,6 +32,7 @@ class User(Node):
         self.roll_values = {"x": [], "y": [], "z": []}
         self.apple_diameter = 80 / 1000 # meters
         self.actuation_mode = "dual"
+        self.experiment_type = "proxy"
 
     def proxy_pick_sequence(self):
 
@@ -129,11 +130,48 @@ class User(Node):
             ax.set_ylabel("Y-axis")
             plt.show()
 
+    def validate_user_input(self, input_str: str, val_str_list):
+        """Method for validating user input"""
+        ret = None
+        while ret not in val_str_list:
+            ret = input(input_str)
+
+        return ret
+    
+    def get_user_info(self):
+        """Method for grabbing and saving user inputs. Takes input from the 
+            command line and saves them to a YAML file (or, will soon)
+        """
+        name = ""
+        while name == "":
+            name = input("a. Your name: ").lower()
+
+        experiment_type = self.validate_user_input("b. Experiment type (sim, proxy, real): ",
+                                                   ["sim", "proxy", "real"])
+        pressure = self.validate_user_input("c. Feed-in pressure at valve, PSI (60, 65, 70) -- \n"
+                             "Tip: if the desired pressure is lower than is currently at the pressure regulator, \n"
+                             "then first pass that pressure and then go up to the desired pressure \n"
+                             "Pressure: ",
+                             ["60", "65", "70"])
+        # proxy specific parameters
+        if self.experiment_type == "proxy":
+            stiffness = self.validate_user_input("d. Branch stiffness level (low, medium, high): ", 
+                                                 ["low", "medium", "high"])
+            magnet_force = self.validate_user_input("e. Magnet force level (low, medium, high): ",
+                                                    ["low", "medium", "high"])
+        pick_pattern = self.validate_user_input("f. Apple pick pattern: (a) Retreat, (b) Rotate and Retreat, (c) Flex and Retreat: ",
+                                                ["a", "b", "c"])
+        tracks = self.validate_user_input("g. Gripper tracks (a) v8 70_80, (b) v8 80_90: ",
+                                          ["a", "b"])
+        actuation_mode = self.validate_user_input("h. Actuation mode (dual, suction, fingers): ",
+                                                  ["dual", "suction", "fingers"])
+
 def main(args=None):
     # initialize rclpy
     rclpy.init(args=args)
     # instantiate the class
     my_user = User()
+    my_user.get_user_info()
     my_user.proxy_pick_sequence()
     # hand control over to ROS2
     # rclpy.spin(my_user)
