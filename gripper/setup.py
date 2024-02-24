@@ -27,7 +27,7 @@ setup(
             'arm_control = gripper.arm_control:main',
             'suction_gripper = gripper.suction_gripper:main',
             'viz = gripper.viz:main',
-            'moveit_test = gripper.moveit_test:main',
+            'proxy_pick = gripper.proxy_pick:main',
         ],
     },
 )

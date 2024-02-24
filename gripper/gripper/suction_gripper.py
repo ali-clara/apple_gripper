@@ -9,7 +9,7 @@ from rclpy.node import Node
 from gripper_msgs.srv import GripperVacuum
 from gripper_msgs.srv import GripperFingers
 
-# other imports
+# standard imports
 import numpy as np
 
 class SuctionGripper(Node):
