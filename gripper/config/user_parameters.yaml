@@ -1,8 +1,0 @@
-name: ali
-experiment type: sim
-pressure: '60'
-branch stiffness: null
-magnet force: null
-pick pattern: a
-tracks: a
-actuation mode: dual

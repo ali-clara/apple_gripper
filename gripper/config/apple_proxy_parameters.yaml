@@ -1,0 +1,8 @@
+proxy_pick:
+  ros__parameters:
+    # apple pose in the world frame, measured from the lower corner of the blue table
+    apple_pose: [-0.69, -0.275, 1.05, 0.0, 0.0, 0.0]
+    stem_pose: [-0.49, -0.30, 1.28, 0.0, 0.0, 0.0]
+    apple_diameter: 0.08  # meters
+    apple_height: 0.07  # meters
+    sampling_sphere_ratio: 1.5  # dimensionless, sampling_sphere_dia / apple_diameter

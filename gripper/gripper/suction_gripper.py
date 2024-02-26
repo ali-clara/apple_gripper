@@ -6,8 +6,7 @@
 # ROS imports
 import rclpy
 from rclpy.node import Node
-from gripper_msgs.srv import GripperVacuum
-from gripper_msgs.srv import GripperFingers
+from gripper_msgs.srv import GripperVacuum, GripperFingers
 
 # standard imports
 import numpy as np

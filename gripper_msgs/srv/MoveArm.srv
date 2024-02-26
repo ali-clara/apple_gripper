@@ -1,5 +1,5 @@
 # inputs
-bool start_proxy
+float64[] ee_position
 ---
 # outputs
 bool result

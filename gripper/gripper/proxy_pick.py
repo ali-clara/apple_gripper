@@ -8,6 +8,7 @@ import rclpy
 from rclpy.node import Node
 from gripper_msgs.srv import GripperVacuum, GripperFingers, StartProxy
 from visualization_msgs.msg import Marker, MarkerArray
+from rcl_interfaces.msg import ParameterDescriptor
 
 # standard imports
 import numpy as np
@@ -22,7 +23,7 @@ from user import validate_user_input
 class ProxyPick(Node):
     def __init__(self):
         # initialize and name the node
-        super().__init__("proxy_pick")
+        super().__init__('proxy_pick')
 
         # set up services
         self.start_proxy_service = self.create_service(StartProxy, 'start_proxy_pick', self.proxy_pick_callback)
@@ -38,13 +39,28 @@ class ProxyPick(Node):
         self.fingers_service_client.wait_for_service()
 
         # set up publishers and subscribers
-        self.apple_markers_publisher = self.create_publisher("apple_markers", MarkerArray, 1)
+        self.apple_markers_publisher = self.create_publisher(Marker, 'apple_markers', 1)
         
+        # set up parameters
+        self.declare_parameters(
+            namespace = '',
+            parameters = [
+                ('apple_pose', None, ParameterDescriptor(dynamic_typing=True)),
+                ('stem_pose', None, ParameterDescriptor(dynamic_typing=True)),
+                ('apple_diameter', None, ParameterDescriptor(dynamic_typing=True)),
+                ('apple_height', None, ParameterDescriptor(dynamic_typing=True)),
+            ],
+            )
+
         # class variables - probably most will be set up as params or loaded from a yaml
         self.roll_values = {"x": [], "y": [], "z": []}
         self.apple_diameter = 80 / 1000 # meters
         self.actuation_mode = "dual"
         self.markers_published = 0
+        self.apple_marker_array = []
+        # self.apple_pose = [-0.69, -0.275, 1.05, 0.0, 0.0, 0.0]
+        self.apple_pose = self.get_parameter('apple_pose').get_parameter_value().double_array_value
+        self.sampling_sphere_diameter = self.apple_diameter * 1.5 # PROBABLY THIS IS A PARAMETER
 
     def proxy_pick_callback(self, request, response):
         """Callback function for the proxy pick service. Should probably 
@@ -66,6 +82,14 @@ class ProxyPick(Node):
         yaw_values = [0] # degrees
         offset_values = [5/1000] # meters
         num_trials = 1
+
+        # create and publish markers at the apple and sampling sphere location
+        # nab the most updated version of the apple position parameter
+        apple_pose = self.get_parameter('apple_pose').get_parameter_value().double_array_value
+        apple_marker = self.create_marker_msg(type=2, position=apple_pose, scale=[self.apple_diameter]*3)
+        sampling_sphere = self.create_marker_msg(type=2, position=apple_pose, scale=[self.sampling_sphere_diameter]*3, color=[0.0,1.0,0.0,0.3])
+        self.apple_markers_publisher.publish(apple_marker)
+        self.apple_markers_publisher.publish(sampling_sphere)
 
         for roll_point in range(roll_points):
             # set pick distance
@@ -103,7 +127,7 @@ class ProxyPick(Node):
                         # save metadata
                         pass
 
-    ##  ------------- SERVICE CALLS ------------- ##
+    ##  ------------- SERVICE CLIENT CALLS ------------- ##
     def send_vacuum_request(self, vacuum_status):
         """Function to call gripper vacuum service.
             Inputs - vacuum_status (bool): True turns the vacuum on, False turns it off
@@ -137,7 +161,7 @@ class ProxyPick(Node):
         angle_step = angle_range / (n_values-1) if n_values > 1 else 1
 
         # set the size of the sampling sphere
-        sphere_rad = (self.apple_diameter / 2) * 1.5 # PROBABLY THIS IS A PARAMETER
+        sphere_rad = self.sampling_sphere_diameter / 2
 
         for i in range(n_values):
             angle = i * angle_step
@@ -191,15 +215,18 @@ class ProxyPick(Node):
                                           "Result: ",
                                           ["a", "b", "c", "d"])
     
-    def create_marker_msg(self, type:int, position, scale, frame='world', color=[0,0,1,1], text=None):
+    def create_marker_msg(self, type:int, position, scale, frame='/map', color=[1.0,0.0,0.0,1.0], text=None) -> Marker:
+        """Method to create a marker given input parameters"""
         marker = Marker()
 
         # set the appropriate marker fields
         marker.type = type
         marker.header.frame_id = frame
-        marker.header.stamp = self.get_clock().now
+        marker.header.stamp = self.get_clock().now().to_msg()
         marker.id = self.markers_published
         self.markers_published += 1
+        # add the marker
+        marker.action = 0
 
         marker.scale.x = scale[0]
         marker.scale.y = scale[1]
@@ -218,8 +245,7 @@ class ProxyPick(Node):
         if text is not None:
             marker.text = text
 
-        # add the marker
-        marker.action = 0
+        return marker
 
 def main(args=None):
     # initialize rclpy
