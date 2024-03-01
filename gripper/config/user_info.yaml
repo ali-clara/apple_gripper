@@ -1,8 +1,8 @@
 name: ali
-experiment type: proxy
+experiment type: sim
 pressure: '60'
-branch stiffness: low
-magnet force: low
+branch stiffness: null
+magnet force: null
 pick pattern: a
 tracks: a
 actuation mode: dual

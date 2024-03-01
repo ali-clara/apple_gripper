@@ -45,7 +45,7 @@ class User(Node):
         self.arm_service_client.wait_for_service()
 
         # set up publishers and subscribers
-        self.apple_markers_publisher = self.create_publisher(Marker, 'apple_markers', 1)
+        self.apple_markers_publisher = self.create_publisher(Marker, 'apple_markers', 10)
 
         # set up parameters, make them dynamic to allow setting from yaml file
         self.declare_parameters(
@@ -69,7 +69,6 @@ class User(Node):
 
         self.roll_values = {"x": [], "y": [], "z": []}
         self.apple_pose = self.get_parameter('apple_pose').get_parameter_value().double_array_value
-        print(self.apple_pose)
         self.apple_diameter = self.get_parameter('apple_diameter').get_parameter_value().double_value
         sampling_sphere_ratio = self.get_parameter('sampling_sphere_ratio').get_parameter_value().double_value
         self.sampling_sphere_diameter = self.apple_diameter * sampling_sphere_ratio
@@ -84,7 +83,7 @@ class User(Node):
             if the proxy service recieves True"""
 
         roll_points = 1
-        roll_values = self.generate_roll_values(roll_points)
+        self.generate_roll_values(roll_points)
 
         yaw_values = [0] # degrees
         offset_values = [5/1000] # meters
@@ -92,22 +91,27 @@ class User(Node):
 
         # create and publish markers at the apple and sampling sphere location
         # nab the most updated version of the apple position parameter
-        apple_pose = self.get_parameter('apple_pose').get_parameter_value().double_array_value
+        apple_pose = self.get_parameter('apple_pose').get_parameter_value().double_array_value.tolist()
         apple_marker = self.create_marker_msg(type=2, position=apple_pose, scale=[self.apple_diameter]*3)
         sampling_sphere = self.create_marker_msg(type=2, position=apple_pose, scale=[self.sampling_sphere_diameter]*3, color=[0.0,1.0,0.0,0.3])
+        self.get_logger().info("Publishing apple marker")
         self.apple_markers_publisher.publish(apple_marker)
         self.apple_markers_publisher.publish(sampling_sphere)
 
         for roll_point in range(roll_points):
+            i = roll_point - 1
+            roll_value = [self.roll_values["x"][i], self.roll_values["y"][i], self.roll_values["z"][i]]
+
             # set pick distance
             for yaw_value in yaw_values:
                 # offset yaw for gripper alignment
                 for offset_value in offset_values:
                     for trial in range(num_trials):
                         # record trial
+                        self.get_logger().info(f"Trial {trial+1}: roll {roll_value}, yaw {yaw_value}, offset {offset_value}")
 
                         # move to starting position - ARM
-                        apple_sampling_pose = self.apple_pose
+                        apple_sampling_pose = apple_pose
                         self.send_arm_request(move_to=apple_sampling_pose)
                         self.get_logger().info("Moving to initial sample position")
                         self.get_logger().info(f"Sending goal to arm: {apple_sampling_pose}")
@@ -122,7 +126,7 @@ class User(Node):
 
                         # approach apple - ARM
                             # stops early if suction engages - GRIPPER
-                        apple_approach_pose = self.apple_pose
+                        apple_approach_pose = apple_pose
                         self.send_arm_request(move_to=apple_approach_pose)
                         self.get_logger().info("Moving to approach the apple")
                         self.get_logger().info(f"Sending goal to arm: {apple_approach_pose}")
@@ -135,7 +139,7 @@ class User(Node):
                             self.get_logger().info("Fingers engaged")
 
                         # move away from apple - ARM
-                        apple_retrieve_pose = self.apple_pose
+                        apple_retrieve_pose = apple_pose
                         self.send_arm_request(move_to=apple_retrieve_pose)
                         self.get_logger().info("Retrieving the apple")
                         self.get_logger().info(f"Sending goal to arm: {apple_retrieve_pose}")
@@ -250,7 +254,7 @@ class User(Node):
                                           "Result: ",
                                           ["a", "b", "c", "d"])
     
-    def create_marker_msg(self, type:int, position, scale, frame='/map', color=[1.0,0.0,0.0,1.0], text=None) -> Marker:
+    def create_marker_msg(self, type:int, position, scale, frame='/world', color=[1.0,0.0,0.0,1.0], text=None) -> Marker:
         """Method to create a marker given input parameters"""
         marker = Marker()
 

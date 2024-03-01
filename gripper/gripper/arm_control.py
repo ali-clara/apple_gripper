@@ -32,6 +32,9 @@ class ArmControl(Node):
             in request.ee_position to move the arm"""
         self.get_logger().info(f"Moving the arm to {request.ee_position}")
 
+        response.result = True
+        return response
+
 def main(args=None):
     # initialize
     rclpy.init(args=args)
