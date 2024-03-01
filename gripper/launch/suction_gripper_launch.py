@@ -1,17 +1,35 @@
-import launch
-import launch_ros.actions
-import os
-from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import PathJoinSubstitution
+
+from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
-    return launch.LaunchDescription([
-        launch_ros.actions.Node(
-            package='gripper',
-            executable='suction_gripper'
-        ),
+    ld = LaunchDescription()
 
-        launch_ros.actions.Node(
-            package='gripper',
-            executable='arm_control'
-        ),
-    ])
+    # Launch the ur5e launch file with the given argument
+    # (also launches rviz)
+    ld.add_action(IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare('gripper'),
+                'launch',
+                'ur5e_launch.py'
+                ])
+            ]),
+        launch_arguments = {'ur_type': 'ur5e'}.items()
+        ))
+    
+    ld.add_action(Node(
+        package='gripper',
+        executable='suction_gripper',
+    ))
+
+    ld.add_action(Node(
+        package='gripper',
+        executable='arm_control',
+    ))
+
+    return ld

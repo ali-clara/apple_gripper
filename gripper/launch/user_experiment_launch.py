@@ -8,7 +8,7 @@ def generate_launch_description():
         launch_ros.actions.Node(
             package = 'gripper',
             executable = 'user',
-            parameters=[os.path.join(get_package_share_directory('gripper'),'config','user_parameters.yaml'),
+            parameters=[os.path.join(get_package_share_directory('gripper'),'config','apple_proxy_parameters.yaml'),
                         ]
         ),
     ])

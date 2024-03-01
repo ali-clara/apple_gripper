@@ -1,4 +1,4 @@
-proxy_pick:
+user:
   ros__parameters:
     # apple pose in the world frame, measured from the lower corner of the blue table
     apple_pose: [-0.69, -0.275, 1.05, 0.0, 0.0, 0.0]

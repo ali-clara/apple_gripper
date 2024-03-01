@@ -1,0 +1,8 @@
+name: ali
+experiment type: proxy
+pressure: '60'
+branch stiffness: low
+magnet force: low
+pick pattern: a
+tracks: a
+actuation mode: dual

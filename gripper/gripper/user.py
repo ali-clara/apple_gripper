@@ -69,6 +69,7 @@ class User(Node):
 
         self.roll_values = {"x": [], "y": [], "z": []}
         self.apple_pose = self.get_parameter('apple_pose').get_parameter_value().double_array_value
+        print(self.apple_pose)
         self.apple_diameter = self.get_parameter('apple_diameter').get_parameter_value().double_value
         sampling_sphere_ratio = self.get_parameter('sampling_sphere_ratio').get_parameter_value().double_value
         self.sampling_sphere_diameter = self.apple_diameter * sampling_sphere_ratio
