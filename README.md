@@ -3,6 +3,7 @@
 
 **Depends:**
 
+- sudo apt install ros-humble-joint-state-publisher ros-humble-joint-state-publisher-gui
 - sudo apt install ros-${ROS_DISTRO}-ur
 
 ---

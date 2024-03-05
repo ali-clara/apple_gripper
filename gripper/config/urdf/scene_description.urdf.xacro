@@ -11,7 +11,7 @@
 
    <!-- ur parameters -->
    <xacro:arg name="tf_prefix" default="" />
-   <xacro:arg name="joint_limit_params" default="$(find ur_description)/config/$(arg ur_type)/joint_limits.yaml"/>
+   <xacro:arg name="joint_limit_params" default="$(find gripper)/config/joint_limits.yaml"/>
    <xacro:arg name="kinematics_params" default="$(find ur_description)/config/$(arg ur_type)/default_kinematics.yaml"/>
    <xacro:arg name="physical_params" default="$(find ur_description)/config/$(arg ur_type)/physical_parameters.yaml"/>
    <xacro:arg name="visual_params" default="$(find ur_description)/config/$(arg ur_type)/visual_parameters.yaml"/>
@@ -121,7 +121,7 @@
      safety_limits="$(arg safety_limits)"
      safety_pos_margin="$(arg safety_pos_margin)"
      safety_k_position="$(arg safety_k_position)"
-     force_abs_paths="$(arg force_abs_paths)"
+     
      >
      <origin xyz="0.35 0.357 0.858" rpy="0.0 0.0 3.1416" />     <!-- position robot in the world -->
    </xacro:ur_robot>
