@@ -27,6 +27,9 @@ class ArmControl(Node):
         # set up the services
         self.create_service(MoveArm, 'move_arm_goal', self.arm_service_callback)
 
+        # instantiate MoveItPy and get planning component
+        
+
     def arm_service_callback(self, request, response):
         """Callback function for the arm moving service. Uses the list stored
             in request.ee_position to move the arm"""

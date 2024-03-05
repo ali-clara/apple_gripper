@@ -3,7 +3,7 @@
 
 **Depends:**
 
-- stuff here
+- sudo apt install ros-${ROS_DISTRO}-ur
 
 ---
 
