@@ -109,7 +109,7 @@ def generate_launch_description():
     robot_description_content = ParameterValue(
         Command([
             PathJoinSubstitution([FindExecutable(name="xacro")]), " ",
-            PathJoinSubstitution([FindPackageShare(description_package), "config/urdf", description_file]),
+            PathJoinSubstitution([FindPackageShare(description_package), "urdf", description_file]),
             " ", "safety_limits:=", safety_limits,
             " ", "safety_pos_margin:=", safety_pos_margin,
             " ", "safety_k_position:=", safety_k_position,

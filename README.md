@@ -22,6 +22,9 @@ To run the user interface and start the pick sequence:
 
     ros2 run gripper user --ros-args --params-file config/apple_proxy_parameters.yaml
 
+
+
+
 ---
 
 **Still working on**
