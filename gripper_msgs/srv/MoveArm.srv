@@ -1,5 +1,5 @@
 # inputs
-float64[] ee_position
+geometry_msgs/PoseStamped ee_goal
 ---
 # outputs
 bool result

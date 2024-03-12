@@ -10,17 +10,25 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclpy REQUIRED)
+find_package(gripper_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(moveit_ros_planning_interface REQUIRED)
 
 # include cpp "include" directory
 include_directories(include)
 
 # create cpp executable
-add_executable(cpp_executable src/cpp_node.cpp)
-ament_target_dependencies(cpp_executable rclcpp)
+add_executable(cpp_node src/cpp_node.cpp)
+add_executable(moveit_service src/moveit_service.cpp)
+
+# define cpp dependencies
+ament_target_dependencies(cpp_node rclcpp)
+ament_target_dependencies(moveit_service rclcpp moveit_ros_planning_interface std_msgs geometry_msgs gripper_msgs)
 
 # install cpp executables
 install(TARGETS
-  cpp_executable
+  cpp_node
+  moveit_service
   DESTINATION lib/${PROJECT_NAME}
 )
 

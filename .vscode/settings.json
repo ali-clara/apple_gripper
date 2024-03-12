@@ -1,0 +1,7 @@
+{
+    "cmake.configureOnOpen": true,
+    "cmake.sourceDirectory": "/home/aliclara/ros2_ws/src/apple_gripper/gripper",
+    "files.associations": {
+        "functional": "cpp"
+    }
+}
