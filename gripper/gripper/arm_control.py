@@ -11,6 +11,11 @@ from rclpy.node import Node
 from geometry_msgs.msg import Pose, PoseStamped
 from gripper_msgs.srv import MoveArm, SetArmGoal, GetArmPosition
 
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
+import tf2_geometry_msgs
+
 # other imports
 import numpy as np
 
@@ -25,7 +30,11 @@ class ArmControl(Node):
         # set up service clients
         self.arm_service_client = self.create_client(MoveArm, 'move_arm')
         self.get_logger().info("Waiting for arm service")
-        self.arm_service_client.wait_for_service()
+        # self.arm_service_client.wait_for_service()
+
+        # set up some TF stuff
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
         
 
     ##  ------------- SERVICE CALLBACKS ------------- ##
@@ -33,6 +42,11 @@ class ArmControl(Node):
         """Callback function for the arm goal service. Uses the list stored
             in request.ee_position to build a pose message and move the arm"""
         self.get_logger().info(f"Moving the arm to {request.goal_ee_location}")
+        goal_pose = self.build_pose_stamped(position=request.goal_ee_location,
+                                            orientation=request.goal_ee_orientation,
+                                            frame=request.frame)
+        
+        self.send_arm_goal(goal_pose)
 
         response.result = True
         return response
@@ -41,17 +55,34 @@ class ArmControl(Node):
         """Callback function for the position request service. Sends a PoseStamped
         message of the current end effector position in the desired frame"""
 
-        self.get_logger().info("returning end effector position")
-        
-        dummy_pose = PoseStamped()
-        dummy_pose.header.frame_id = request.frame
-        response.current_ee_pose = dummy_pose
+        self.get_logger().info(f"Returning end effector position in the {request.frame} frame")
+        ee_in_new_frame = self.get_current_pose(request.frame)
+        response.current_ee_pose = ee_in_new_frame
+
         return response
 
     
     ##  ------------- SERVICE CLIENT CALLS ------------- ##
 
+    def send_arm_goal(self, goal_pose:PoseStamped):
+        """Function to call arm service.
+            Inputs - 
+                goal_pose: PoseStamped message containing the location, orientation, and reference frame
+                    of the goal end effector position
+        """
+        # build the request
+        request = MoveArm.Request()
+        request.ee_goal = goal_pose
 
+        # make the service call (asynchronously)
+        self.move_arm_response = self.arm_service_client.call_async(request)
+
+        failed_attempts = 0
+
+        if self.move_arm_response.result:
+            self.get_logger().info("Arm successfully moved to the goal position!")
+        else:
+            self.get_logger().info("Arm failed to move or plan. Retrying")
 
     ##  ------------- HELPER FUNCTIONS ------------- ##
     def build_pose_stamped(self, position, frame, orientation=[0.0,0.0,0.0,1.0]) -> PoseStamped:
@@ -70,6 +101,17 @@ class ArmControl(Node):
         goal_pose.pose.orientation.w = orientation[3]
 
         return goal_pose
+    
+    def get_current_pose(self, frame_id):
+        """Method that builds a stamped pose for the end effector position and returns
+        that pose in the given frame
+        
+        Inputs - frame_id (string): frame you want the end effector position in
+        """
+        origin = self.build_pose_stamped(position=[0.0,0.0,0.0], frame="suction_gripper")
+        transformed_pose = self.tf_buffer.transform(origin, frame_id, rclpy.duration.Duration(seconds=1))
+
+        return transformed_pose
 
 
 def main(args=None):

@@ -36,15 +36,15 @@ class User(Node):
         # set up service clients
         self.vacuum_service_client = self.create_client(GripperVacuum, 'set_vacuum_status')
         self.get_logger().info("Waiting for gripper vaccuum server")
-        self.vacuum_service_client.wait_for_service()
+        # self.vacuum_service_client.wait_for_service()
 
         self.fingers_service_client = self.create_client(GripperFingers, 'set_fingers_status')
         self.get_logger().info("Waiting for gripper finger server")
-        self.fingers_service_client.wait_for_service()
+        # self.fingers_service_client.wait_for_service()
 
-        # self.arm_service_client = self.create_client(MoveArm, 'move_arm')
-        # self.get_logger().info("Waiting for arm service")
-        # self.arm_service_client.wait_for_service()
+        self.get_pos_service_client = self.create_client(GetArmPosition, 'get_arm_position')
+        self.get_logger().info("Waiting for position server")
+        self.get_pos_service_client.wait_for_service()
 
         self.arm_service_client = self.create_client(SetArmGoal, 'set_arm_goal')
         self.get_logger().info("Waiting for arm service")
@@ -52,6 +52,7 @@ class User(Node):
 
         # set up publishers and subscribers
         self.apple_markers_publisher = self.create_publisher(Marker, 'apple_markers', 10)
+        
         self.get_logger().info("Started marker publisher")
 
         # set up parameters, make them dynamic to allow setting from yaml file
@@ -85,13 +86,16 @@ class User(Node):
         self.branch_stiffness = "medium"
         self.magnet_force = "medium"
 
+        self.end_effector_starting_position = self.get_arm_position("world")
+        self.get_logger().info(f"Starting end effector position: {self.end_effector_starting_position}")
+
         self.save_directory = os.path.abspath(os.path.join(os.getcwd(), os.pardir, 'config'))
     
     def proxy_pick_sequence(self):
         """Method that runs through the sequence to use the apple proxy. Called
             if the proxy service recieves True"""
-
-        roll_points = 1
+        
+        roll_points = 7
         self.generate_roll_values(roll_points)
 
         yaw_values = [0] # degrees
@@ -119,13 +123,16 @@ class User(Node):
                 for offset_value in offset_values:
                     for trial in range(num_trials):
                         # record trial
-                        self.get_logger().info(f"Trial {trial+1}: roll {roll_value}, yaw {yaw_value}, offset {offset_value}")
+                        self.get_logger().info(f"Trial {trial+1}: sampled roll location {roll_value}, yaw {yaw_value}, offset {offset_value}")
 
                         # move to starting position - ARM
-                        starting_position = apple_location
+                        starting_position = roll_value
+                        roll_marker = self.create_marker_msg(type=2, position=roll_value, scale=[0.01]*3, color=[0.0,0.0,1.0,1.0])
+                        self.apple_markers_publisher.publish(roll_marker)
                         self.send_arm_request(ee_location=starting_position)
                         self.get_logger().info("Moving to initial sample position")
                         self.get_logger().info(f"Sending goal to arm: {starting_position}")
+
                         # start rosbag recording
                         # add noise, if using
 
@@ -190,7 +197,7 @@ class User(Node):
         self.fingers_response = self.fingers_service_client.call_async(request)
 
     def send_arm_request(self, ee_location, ee_orientation=[0.0,0.0,0.0,1.0], ee_frame="world"):
-        """Function to call arm service.
+        """Method to call arm service.
             Inputs - 
                 ee_location (float64 array): End effector goal position
                 ee_orientation (float64 array): End effector goal orientation. Defaults to whatever
@@ -205,11 +212,25 @@ class User(Node):
 
         # make the service call (asynchronously)
         self.arm_response = self.arm_service_client.call_async(request)
+
+    def get_arm_position(self, frame="world"):
+        """Method to get the end effector position in the specified frame
+        
+        Inputs - frame (string): Desired frame. Defaults to world
+        """
+
+        # build the request
+        request = GetArmPosition.Request()
+        request.frame = frame
+
+        # make the service call
+        self.current_arm_position = self.get_pos_service_client.call(request)
     
     ## ------------- HELPER FUNCTIONS  ------------- ##
     def generate_roll_values(self, n_values: int, angle_range_deg=135, plot=False):
-        """Function that generates points along a 2D arc. Used to calculate the 
-            roll points to sample along the apple surface
+        """Method that generates points along a 2D arc. Used to calculate the 
+            roll points to sample along the apple surface. Saves the generated sample
+            points in the world frame to self.roll_values
 
             Inputs - n_values (int): number of points to generate
         """
@@ -220,14 +241,16 @@ class User(Node):
         # set the size of the sampling sphere
         sphere_rad = self.sampling_sphere_diameter / 2
 
+        # generate n_values points around the sampling sphere and find their coordinates in the world frame
         for i in range(n_values):
             angle = i * angle_step
             angle_deg = np.rad2deg(angle)
             self.get_logger().info(f"Sampling point {i} roll at {np.round(angle_deg,3)} degrees")
 
-            x = 0
-            y = -sphere_rad * np.sin(angle)
-            z = -sphere_rad * np.cos(angle)
+            # adjust by self.apple_location to transform into the world frame
+            x = 0 + self.apple_location[0]
+            y = -sphere_rad * np.sin(angle) + self.apple_location[1]
+            z = -sphere_rad * np.cos(angle) + self.apple_location[2]
 
             self.roll_values["x"].append(x)
             self.roll_values["y"].append(y)
@@ -239,6 +262,11 @@ class User(Node):
             ax.set_xlabel("X-axis")
             ax.set_ylabel("Y-axis")
             plt.show()
+
+    def find_tangent_orientation(self):
+        """Method that finds the orientation tangent to the apple at the given
+            sampled roll point."""
+        pass
 
     def label_suction_cups(self):
         """Method to allow the user to label the suction cup engagement after

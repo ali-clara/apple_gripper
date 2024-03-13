@@ -222,6 +222,13 @@ def launch_setup(context, *args, **kwargs):
         output="screen",
     )
 
+    robot_state_publisher_node = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        output="both",
+        parameters=[robot_description],
+    )
+
     # Node for my own cpp moveit control
     my_moveit_node = Node(
         package="gripper",
@@ -234,7 +241,7 @@ def launch_setup(context, *args, **kwargs):
         ],
     )
 
-    nodes_to_start = [move_group_node, rviz_node, servo_node, my_moveit_node]
+    nodes_to_start = [move_group_node, rviz_node, servo_node, robot_state_publisher_node, my_moveit_node]
 
     return nodes_to_start
 

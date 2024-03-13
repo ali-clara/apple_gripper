@@ -5,7 +5,19 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-      Splitter Ratio: 0.4957627058029175
+        - /TF1/Tree1/world1
+        - /TF1/Tree1/world1/small_table1
+        - /TF1/Tree1/world1/small_table1/base_link1
+        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1
+        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1
+        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1
+        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1/forearm_link1
+        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1/forearm_link1/wrist_1_link1
+        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1/forearm_link1/wrist_1_link1/wrist_2_link1
+        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1/forearm_link1/wrist_1_link1/wrist_2_link1/wrist_3_link1
+        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1/forearm_link1/wrist_1_link1/wrist_2_link1/wrist_3_link1/flange1
+        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1/forearm_link1/wrist_1_link1/wrist_2_link1/wrist_3_link1/flange1/tool01
+      Splitter Ratio: 0.573440670967102
     Tree Height: 155
   - Class: rviz_common/Selection
     Name: Selection
@@ -294,6 +306,74 @@ Visualization Manager:
         Show Robot Visual: true
       Value: true
       Velocity_Scaling_Factor: 0.1
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+        apple_proxy:
+          Value: true
+        base:
+          Value: true
+        base_link:
+          Value: true
+        base_link_inertia:
+          Value: true
+        big_table:
+          Value: true
+        flange:
+          Value: true
+        forearm_link:
+          Value: true
+        ft_frame:
+          Value: true
+        shoulder_link:
+          Value: true
+        small_table:
+          Value: true
+        suction_gripper:
+          Value: true
+        tool0:
+          Value: true
+        upper_arm_link:
+          Value: true
+        world:
+          Value: true
+        wrist_1_link:
+          Value: true
+        wrist_2_link:
+          Value: true
+        wrist_3_link:
+          Value: true
+      Marker Scale: 1
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: false
+      Tree:
+        world:
+          big_table:
+            apple_proxy:
+              {}
+          small_table:
+            base_link:
+              base:
+                {}
+              base_link_inertia:
+                shoulder_link:
+                  upper_arm_link:
+                    forearm_link:
+                      wrist_1_link:
+                        wrist_2_link:
+                          wrist_3_link:
+                            flange:
+                              tool0:
+                                suction_gripper:
+                                  {}
+                            ft_frame:
+                              {}
+      Update Interval: 0
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -340,7 +420,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 5.486055850982666
+      Distance: 5.2028422355651855
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -355,10 +435,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.35539817810058594
+      Pitch: 0.4353982210159302
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.778581380844116
+      Yaw: 3.7685816287994385
     Saved: ~
 Window Geometry:
   Displays:
