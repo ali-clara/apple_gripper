@@ -10,19 +10,17 @@
 
 **Running**
 
-To launch just the RVIZ world:
+Launch the UR robot driver
 
-    ros2 launch gripper ur5e_launch.py
+    ros2 launch ur_robot_driver ur_control.launch.py ur_type:=ur5e robot_ip:=yyy.yyy.yyy.yyy use_fake_hardware:=true launch_rviz:=false
 
-To launch the RVIZ world *and* start the nodes for arm control - required before running the pick sequence:
+Launch the RVIZ world, start MoveIt2 arm control, and connect to the gripper: - required before running the pick sequence:
 
     ros2 launch gripper suction_gripper_launch.py
 
-To run the user interface and start the pick sequence:
+Run the user interface and start the pick sequence:
 
     ros2 run gripper user --ros-args --params-file config/apple_proxy_parameters.yaml
-
-
 
 
 ---
@@ -30,4 +28,3 @@ To run the user interface and start the pick sequence:
 **Still working on**
 
 - Writing a pyserial wrapper to communicate with the arduino gripper code
-- Using tf2 and MoveIt2 to actually move the arm

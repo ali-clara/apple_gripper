@@ -17,6 +17,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GripperVacuum.srv"
   "srv/GripperFingers.srv"
   "srv/MoveArm.srv"
+  "srv/SetArmGoal.srv"
+  "srv/GetArmPosition.srv"
   DEPENDENCIES std_msgs geometry_msgs
   )
 

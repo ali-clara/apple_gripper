@@ -1,0 +1,5 @@
+# inputs
+string frame
+---
+# outputs
+geometry_msgs/PoseStamped current_ee_pose

@@ -17,7 +17,7 @@ using std::placeholders::_2;
 using moveit::planning_interface::MoveGroupInterface;
 
 int move_arm(std::shared_ptr<gripper_msgs::srv::MoveArm::Request> request){
-	// Create moveIt node
+	// Create MoveIt node
 	std::shared_ptr<rclcpp::Node> node = std::make_shared<rclcpp::Node>("hello_moveit",
     	rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(true));
 
@@ -27,20 +27,20 @@ int move_arm(std::shared_ptr<gripper_msgs::srv::MoveArm::Request> request){
 
 	// Create the MoveIt MoveGroup Interface
 	auto move_group_interface = MoveGroupInterface(node, "ur_manipulator");
-
-	// Normally we'd move the arm to the position set in request - for now just pick a random target
-	// move_group_interface.setRandomTarget();
-
-	// auto const frame = boost::lexical_cast<std::string>(request->ee_goal.header.frame_id);
-	// std::string frame = "world";
 	
 	// Set the default reference frame for unspecified Poses to be whatever we got from request
 	std::string frame = request->ee_goal.header.frame_id;
 	move_group_interface.setPoseReferenceFrame(frame);
 
+	// Set some planning params - 
+		// the maximum time allowed to the planner before aborting
+	move_group_interface.setPlanningTime(30.0);
+		// the number of times to compute the motion plan before the shortest soln is returned
+	move_group_interface.setNumPlanningAttempts(20);
+
 	// Retrieve the pose from the PoseStamped
 	auto const target_pose = request->ee_goal.pose;
-	move_group_interface.setPoseTarget(target_pose);
+	move_group_interface.setPoseTarget(target_pose, "suction_gripper");
 
 	RCLCPP_INFO(logger, "making a plan to (%f, %f, %f) in the %s frame", 
 		target_pose.position.x, target_pose.position.y, target_pose.position.z, frame.c_str());
@@ -62,7 +62,6 @@ int move_arm(std::shared_ptr<gripper_msgs::srv::MoveArm::Request> request){
 		return -1;
 	}
 
-	// return 0;
 }
 
 // The idiom in C++ is the same as in Python; we create a class that
@@ -88,9 +87,16 @@ private:
 
 		RCLCPP_INFO(this->get_logger(), "recieved message %f", request->ee_goal.pose.position.x);
 
-		move_arm(request);
+		int planning_result = move_arm(request);
+		
         // The result is returned by filling in the response.
-		response->result = true;
+		if(planning_result==0){
+			response->result = true;
+		}
+		else{
+			response->result = false;
+		}
+		
 	}
     
 };

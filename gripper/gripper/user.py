@@ -6,7 +6,7 @@
 # ROS imports
 import rclpy
 from rclpy.node import Node
-from gripper_msgs.srv import GripperFingers, GripperVacuum, MoveArm
+from gripper_msgs.srv import GripperFingers, GripperVacuum, SetArmGoal, GetArmPosition
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Pose, PoseStamped
 from rcl_interfaces.msg import ParameterDescriptor
@@ -16,6 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import yaml
 import time
+import os
 
 def validate_user_input(input_str: str, val_str_list) -> str:
     """Helper function for validating user input. Checks if a given input from the
@@ -41,12 +42,17 @@ class User(Node):
         self.get_logger().info("Waiting for gripper finger server")
         self.fingers_service_client.wait_for_service()
 
-        self.arm_service_client = self.create_client(MoveArm, 'move_arm')
+        # self.arm_service_client = self.create_client(MoveArm, 'move_arm')
+        # self.get_logger().info("Waiting for arm service")
+        # self.arm_service_client.wait_for_service()
+
+        self.arm_service_client = self.create_client(SetArmGoal, 'set_arm_goal')
         self.get_logger().info("Waiting for arm service")
         self.arm_service_client.wait_for_service()
 
         # set up publishers and subscribers
         self.apple_markers_publisher = self.create_publisher(Marker, 'apple_markers', 10)
+        self.get_logger().info("Started marker publisher")
 
         # set up parameters, make them dynamic to allow setting from yaml file
         self.declare_parameters(
@@ -78,6 +84,8 @@ class User(Node):
         self.actuation_mode = "dual"
         self.branch_stiffness = "medium"
         self.magnet_force = "medium"
+
+        self.save_directory = os.path.abspath(os.path.join(os.getcwd(), os.pardir, 'config'))
     
     def proxy_pick_sequence(self):
         """Method that runs through the sequence to use the apple proxy. Called
@@ -94,11 +102,12 @@ class User(Node):
         # nab the most updated version of the apple position parameter
         apple_location = self.get_parameter('apple_location').get_parameter_value().double_array_value.tolist()
         self.get_logger().info(f"apple location: {apple_location}")
+
         apple_marker = self.create_marker_msg(type=2, position=apple_location, scale=[self.apple_diameter]*3)
         sampling_sphere = self.create_marker_msg(type=2, position=apple_location, scale=[self.sampling_sphere_diameter]*3, color=[0.0,1.0,0.0,0.3])
-        self.get_logger().info("Publishing apple marker")
         self.apple_markers_publisher.publish(apple_marker)
         self.apple_markers_publisher.publish(sampling_sphere)
+        self.get_logger().info("Published apple markers")
 
         for roll_point in range(roll_points):
             i = roll_point - 1
@@ -113,10 +122,10 @@ class User(Node):
                         self.get_logger().info(f"Trial {trial+1}: roll {roll_value}, yaw {yaw_value}, offset {offset_value}")
 
                         # move to starting position - ARM
-                        apple_sampling_pose = self.build_pose_stamped(apple_location, frame="world")
-                        self.send_arm_request(move_to=apple_sampling_pose)
+                        starting_position = apple_location
+                        self.send_arm_request(ee_location=starting_position)
                         self.get_logger().info("Moving to initial sample position")
-                        self.get_logger().info(f"Sending goal to arm: {apple_sampling_pose}")
+                        self.get_logger().info(f"Sending goal to arm: {starting_position}")
                         # start rosbag recording
                         # add noise, if using
 
@@ -180,13 +189,20 @@ class User(Node):
         # make the service call (asynchronously)
         self.fingers_response = self.fingers_service_client.call_async(request)
 
-    def send_arm_request(self, move_to):
+    def send_arm_request(self, ee_location, ee_orientation=[0.0,0.0,0.0,1.0], ee_frame="world"):
         """Function to call arm service.
-            Inputs - move_to (float64 array): End effector goal position in the world frame
+            Inputs - 
+                ee_location (float64 array): End effector goal position
+                ee_orientation (float64 array): End effector goal orientation. Defaults to whatever
+                frame (string): Reference frame of the given location and orientation
+
         """
         # build the request
-        request = MoveArm.Request()
-        request.ee_goal = move_to
+        request = SetArmGoal.Request()
+        request.goal_ee_location = ee_location
+        request.goal_ee_orientation = ee_orientation
+        request.frame = ee_frame
+
         # make the service call (asynchronously)
         self.arm_response = self.arm_service_client.call_async(request)
     
@@ -224,23 +240,6 @@ class User(Node):
             ax.set_ylabel("Y-axis")
             plt.show()
 
-    def build_pose_stamped(self, position, frame, orientation=[0.0,0.0,0.0,1.0]) -> PoseStamped:
-        """Method to build a PoseStamped message in a given frame"""
-        goal_pose = PoseStamped()
-        goal_pose.header.frame_id = frame
-        goal_pose.header.stamp = self.get_clock().now().to_msg()
-
-        goal_pose.pose.position.x = position[0]
-        goal_pose.pose.position.y = position[1]
-        goal_pose.pose.position.z = position[2]
-
-        goal_pose.pose.orientation.x = orientation[0]
-        goal_pose.pose.orientation.y = orientation[1]
-        goal_pose.pose.orientation.z = orientation[2]
-        goal_pose.pose.orientation.w = orientation[3]
-
-        return goal_pose
-
     def label_suction_cups(self):
         """Method to allow the user to label the suction cup engagement after
             the initial approach
@@ -273,7 +272,7 @@ class User(Node):
                                           "Result: ",
                                           ["a", "b", "c", "d"])
     
-    def create_marker_msg(self, type:int, position, scale, frame='/world', color=[1.0,0.0,0.0,1.0], text=None) -> Marker:
+    def create_marker_msg(self, type:int, position, scale, frame='world', color=[1.0,0.0,0.0,1.0], text=None) -> Marker:
         """Method to create a marker given input parameters"""
         marker = Marker()
 

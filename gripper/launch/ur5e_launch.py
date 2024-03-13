@@ -29,6 +29,8 @@
 # Author: Denis Stogl
 
 # Modified 2024-02-29 by Ali Jones
+# I don't actually use this for the proxy pick experiment, but it's a good test to
+# see if the arm, scene, and joint control gui all load and work
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
