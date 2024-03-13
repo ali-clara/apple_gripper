@@ -8,6 +8,7 @@ import rclpy
 from rclpy.node import Node
 from gripper_msgs.srv import GripperFingers, GripperVacuum, MoveArm
 from visualization_msgs.msg import Marker
+from geometry_msgs.msg import Pose, PoseStamped
 from rcl_interfaces.msg import ParameterDescriptor
 
 # standard imports
@@ -40,7 +41,7 @@ class User(Node):
         self.get_logger().info("Waiting for gripper finger server")
         self.fingers_service_client.wait_for_service()
 
-        self.arm_service_client = self.create_client(MoveArm, 'move_arm_goal')
+        self.arm_service_client = self.create_client(MoveArm, 'move_arm')
         self.get_logger().info("Waiting for arm service")
         self.arm_service_client.wait_for_service()
 
@@ -51,7 +52,7 @@ class User(Node):
         self.declare_parameters(
             namespace = '',
             parameters = [
-                ('apple_pose', None, ParameterDescriptor(dynamic_typing=True)),
+                ('apple_location', None, ParameterDescriptor(dynamic_typing=True)),
                 ('stem_pose', None, ParameterDescriptor(dynamic_typing=True)),
                 ('apple_diameter', None, ParameterDescriptor(dynamic_typing=True)),
                 ('apple_height', None, ParameterDescriptor(dynamic_typing=True)),
@@ -68,7 +69,7 @@ class User(Node):
         self.markers_published = 0
 
         self.roll_values = {"x": [], "y": [], "z": []}
-        self.apple_pose = self.get_parameter('apple_pose').get_parameter_value().double_array_value
+        self.apple_location = self.get_parameter('apple_location').get_parameter_value().double_array_value
         self.apple_diameter = self.get_parameter('apple_diameter').get_parameter_value().double_value
         sampling_sphere_ratio = self.get_parameter('sampling_sphere_ratio').get_parameter_value().double_value
         self.sampling_sphere_diameter = self.apple_diameter * sampling_sphere_ratio
@@ -91,9 +92,10 @@ class User(Node):
 
         # create and publish markers at the apple and sampling sphere location
         # nab the most updated version of the apple position parameter
-        apple_pose = self.get_parameter('apple_pose').get_parameter_value().double_array_value.tolist()
-        apple_marker = self.create_marker_msg(type=2, position=apple_pose, scale=[self.apple_diameter]*3)
-        sampling_sphere = self.create_marker_msg(type=2, position=apple_pose, scale=[self.sampling_sphere_diameter]*3, color=[0.0,1.0,0.0,0.3])
+        apple_location = self.get_parameter('apple_location').get_parameter_value().double_array_value.tolist()
+        self.get_logger().info(f"apple location: {apple_location}")
+        apple_marker = self.create_marker_msg(type=2, position=apple_location, scale=[self.apple_diameter]*3)
+        sampling_sphere = self.create_marker_msg(type=2, position=apple_location, scale=[self.sampling_sphere_diameter]*3, color=[0.0,1.0,0.0,0.3])
         self.get_logger().info("Publishing apple marker")
         self.apple_markers_publisher.publish(apple_marker)
         self.apple_markers_publisher.publish(sampling_sphere)
@@ -111,7 +113,7 @@ class User(Node):
                         self.get_logger().info(f"Trial {trial+1}: roll {roll_value}, yaw {yaw_value}, offset {offset_value}")
 
                         # move to starting position - ARM
-                        apple_sampling_pose = apple_pose
+                        apple_sampling_pose = self.build_pose_stamped(apple_location, frame="world")
                         self.send_arm_request(move_to=apple_sampling_pose)
                         self.get_logger().info("Moving to initial sample position")
                         self.get_logger().info(f"Sending goal to arm: {apple_sampling_pose}")
@@ -126,7 +128,7 @@ class User(Node):
 
                         # approach apple - ARM
                             # stops early if suction engages - GRIPPER
-                        apple_approach_pose = apple_pose
+                        apple_approach_pose = apple_location
                         self.send_arm_request(move_to=apple_approach_pose)
                         self.get_logger().info("Moving to approach the apple")
                         self.get_logger().info(f"Sending goal to arm: {apple_approach_pose}")
@@ -139,7 +141,7 @@ class User(Node):
                             self.get_logger().info("Fingers engaged")
 
                         # move away from apple - ARM
-                        apple_retrieve_pose = apple_pose
+                        apple_retrieve_pose = apple_location
                         self.send_arm_request(move_to=apple_retrieve_pose)
                         self.get_logger().info("Retrieving the apple")
                         self.get_logger().info(f"Sending goal to arm: {apple_retrieve_pose}")
@@ -184,7 +186,7 @@ class User(Node):
         """
         # build the request
         request = MoveArm.Request()
-        request.ee_position = move_to
+        request.ee_goal = move_to
         # make the service call (asynchronously)
         self.arm_response = self.arm_service_client.call_async(request)
     
@@ -221,6 +223,23 @@ class User(Node):
             ax.set_xlabel("X-axis")
             ax.set_ylabel("Y-axis")
             plt.show()
+
+    def build_pose_stamped(self, position, frame, orientation=[0.0,0.0,0.0,1.0]) -> PoseStamped:
+        """Method to build a PoseStamped message in a given frame"""
+        goal_pose = PoseStamped()
+        goal_pose.header.frame_id = frame
+        goal_pose.header.stamp = self.get_clock().now().to_msg()
+
+        goal_pose.pose.position.x = position[0]
+        goal_pose.pose.position.y = position[1]
+        goal_pose.pose.position.z = position[2]
+
+        goal_pose.pose.orientation.x = orientation[0]
+        goal_pose.pose.orientation.y = orientation[1]
+        goal_pose.pose.orientation.z = orientation[2]
+        goal_pose.pose.orientation.w = orientation[3]
+
+        return goal_pose
 
     def label_suction_cups(self):
         """Method to allow the user to label the suction cup engagement after
@@ -326,8 +345,8 @@ class User(Node):
         d = {"name":name, "experiment type":experiment_type, "pressure":pressure, "branch stiffness":stiffness, 
              "magnet force":magnet_force, "pick pattern":pick_pattern, "tracks":tracks, "actuation mode":actuation_mode}
 
-        with open ("config/user_info.yaml", 'w') as yaml_file:
-            yaml.dump(d, yaml_file, default_flow_style=False, sort_keys=False)
+        # with open ("config/user_info.yaml", 'w') as yaml_file:
+        #     yaml.dump(d, yaml_file, default_flow_style=False, sort_keys=False)
 
     def configure_parameter_yaml(self, insert_dict, node_name="user", file_name="params.yaml"):
         """Method for formatting a yaml file that can be read as
@@ -344,7 +363,7 @@ def main(args=None):
     rclpy.init(args=args)
     # instantiate the class
     my_user = User()
-    my_user.get_user_info()
+    # my_user.get_user_info()
     input("Hit enter to start proxy test: ")
     my_user.proxy_pick_sequence()
     # hand control over to ROS2

@@ -6,6 +6,9 @@
 // Include our custom message type definition.
 #include <gripper_msgs/srv/move_arm.hpp>
 
+#include <boost/lexical_cast.hpp>
+#include <string>
+
 // The service callback is going to need two parameters, so we declare that
 // we're going to use two placeholders.
 using std::placeholders::_1;
@@ -26,7 +29,21 @@ int move_arm(std::shared_ptr<gripper_msgs::srv::MoveArm::Request> request){
 	auto move_group_interface = MoveGroupInterface(node, "ur_manipulator");
 
 	// Normally we'd move the arm to the position set in request - for now just pick a random target
-	move_group_interface.setRandomTarget();
+	// move_group_interface.setRandomTarget();
+
+	// auto const frame = boost::lexical_cast<std::string>(request->ee_goal.header.frame_id);
+	// std::string frame = "world";
+	
+	// Set the default reference frame for unspecified Poses to be whatever we got from request
+	std::string frame = request->ee_goal.header.frame_id;
+	move_group_interface.setPoseReferenceFrame(frame);
+
+	// Retrieve the pose from the PoseStamped
+	auto const target_pose = request->ee_goal.pose;
+	move_group_interface.setPoseTarget(target_pose);
+
+	RCLCPP_INFO(logger, "making a plan to (%f, %f, %f) in the %s frame", 
+		target_pose.position.x, target_pose.position.y, target_pose.position.z, frame.c_str());
 
 	// Create a plan to that target pose
 	auto const [success, plan] = [&move_group_interface]{
