@@ -122,8 +122,7 @@
     safety_pos_margin="$(arg safety_pos_margin)"
     safety_k_position="$(arg safety_k_position)" 
     >
-    <!-- <origin xyz="0.35 0.357 0.858" rpy="0.0 0.0 3.1416" /> -->
-    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+    <origin xyz="0.35 0.357 0.858" rpy="0.0 0.0 3.1416" />
   </xacro:ur_robot>
 
   <!-- Describe the relationships between the objects -->
@@ -143,12 +142,6 @@
     <parent link = "big_table" /> 
     <child link = "apple_proxy" /> 
     <origin xyz = "0.4572 0.91 0.895" rpy="1.5708 0 -1.5708" />
-  </joint>
-
-  <joint name = "small_table_to_ur_base" type="fixed"> 
-    <parent link = "small_table"/> 
-    <child link = "base_link"/> 
-    <origin xyz="0.35 0.357 0.858" rpy="0.0 0.0 3.1416" />
   </joint>
 
   <joint name="robotiq_coupler_joint" type="fixed">

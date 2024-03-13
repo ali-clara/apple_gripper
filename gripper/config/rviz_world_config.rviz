@@ -5,18 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /TF1/Tree1/world1
-        - /TF1/Tree1/world1/small_table1
-        - /TF1/Tree1/world1/small_table1/base_link1
-        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1
-        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1
-        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1
-        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1/forearm_link1
-        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1/forearm_link1/wrist_1_link1
-        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1/forearm_link1/wrist_1_link1/wrist_2_link1
-        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1/forearm_link1/wrist_1_link1/wrist_2_link1/wrist_3_link1
-        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1/forearm_link1/wrist_1_link1/wrist_2_link1/wrist_3_link1/flange1
-        - /TF1/Tree1/world1/small_table1/base_link1/base_link_inertia1/shoulder_link1/upper_arm_link1/forearm_link1/wrist_1_link1/wrist_2_link1/wrist_3_link1/flange1/tool01
+        - /MotionPlanning1
       Splitter Ratio: 0.573440670967102
     Tree Height: 155
   - Class: rviz_common/Selection
@@ -438,7 +427,7 @@ Visualization Manager:
       Pitch: 0.4353982210159302
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.7685816287994385
+      Yaw: 3.8785839080810547
     Saved: ~
 Window Geometry:
   Displays:

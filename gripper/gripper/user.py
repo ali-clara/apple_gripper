@@ -36,11 +36,11 @@ class User(Node):
         # set up service clients
         self.vacuum_service_client = self.create_client(GripperVacuum, 'set_vacuum_status')
         self.get_logger().info("Waiting for gripper vaccuum server")
-        # self.vacuum_service_client.wait_for_service()
+        self.vacuum_service_client.wait_for_service()
 
         self.fingers_service_client = self.create_client(GripperFingers, 'set_fingers_status')
         self.get_logger().info("Waiting for gripper finger server")
-        # self.fingers_service_client.wait_for_service()
+        self.fingers_service_client.wait_for_service()
 
         self.get_pos_service_client = self.create_client(GetArmPosition, 'get_arm_position')
         self.get_logger().info("Waiting for position server")
@@ -86,8 +86,8 @@ class User(Node):
         self.branch_stiffness = "medium"
         self.magnet_force = "medium"
 
-        self.end_effector_starting_position = self.get_arm_position("world")
-        self.get_logger().info(f"Starting end effector position: {self.end_effector_starting_position}")
+        # self.end_effector_starting_position = self.get_arm_position("world")
+        # self.get_logger().info(f"Starting end effector position: {self.end_effector_starting_position}")
 
         self.save_directory = os.path.abspath(os.path.join(os.getcwd(), os.pardir, 'config'))
     
@@ -114,8 +114,8 @@ class User(Node):
         self.get_logger().info("Published apple markers")
 
         for roll_point in range(roll_points):
-            i = roll_point - 1
-            roll_value = [self.roll_values["x"][i], self.roll_values["y"][i], self.roll_values["z"][i]]
+            # i = roll_point - 1
+            roll_value = [self.roll_values["x"][roll_point], self.roll_values["y"][roll_point], self.roll_values["z"][roll_point]]
 
             # set pick distance
             for yaw_value in yaw_values:
@@ -133,6 +133,13 @@ class User(Node):
                         self.get_logger().info("Moving to initial sample position")
                         self.get_logger().info(f"Sending goal to arm: {starting_position}")
 
+                        move_check = input("Did the arm move to the correct location?")
+                        if move_check == "yes":
+                            pass
+                        else:
+                            print("should replan")
+                            break
+
                         # start rosbag recording
                         # add noise, if using
 
@@ -144,8 +151,8 @@ class User(Node):
 
                         # approach apple - ARM
                             # stops early if suction engages - GRIPPER
-                        apple_approach_pose = apple_location
-                        self.send_arm_request(move_to=apple_approach_pose)
+                        apple_approach_pose = roll_value
+                        self.send_arm_request(ee_location=apple_approach_pose)
                         self.get_logger().info("Moving to approach the apple")
                         self.get_logger().info(f"Sending goal to arm: {apple_approach_pose}")
 
@@ -157,8 +164,8 @@ class User(Node):
                             self.get_logger().info("Fingers engaged")
 
                         # move away from apple - ARM
-                        apple_retrieve_pose = apple_location
-                        self.send_arm_request(move_to=apple_retrieve_pose)
+                        apple_retrieve_pose = roll_value
+                        self.send_arm_request(ee_location=apple_retrieve_pose)
                         self.get_logger().info("Retrieving the apple")
                         self.get_logger().info(f"Sending goal to arm: {apple_retrieve_pose}")
                             
