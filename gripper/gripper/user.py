@@ -15,6 +15,7 @@ from tf_transformations import euler_from_quaternion, quaternion_about_axis, qua
 # standard imports
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 import yaml
 import os
 
@@ -68,6 +69,7 @@ class User(Node):
 
         # class variables
         self.markers_published = 0
+        self.pick_number = 0
 
         self.roll_values = {"x": [], "y": [], "z": []}
         self.apple_location = self.get_parameter('apple_location').get_parameter_value().double_array_value
@@ -84,14 +86,15 @@ class User(Node):
         self.approach_distance = 2*suction_cup_give + (self.sampling_sphere_diameter - self.apple_diameter)/2
         self.retrieve_distance = -0.130
 
-        self.save_directory = os.path.abspath(os.path.join(os.getcwd(), os.pardir, 'config'))
+        self.metadata = {}
+
+        self.save_directory = os.path.abspath(os.path.join(os.getcwd(), os.pardir, 'data'))
     
     def proxy_pick_sequence(self):
-        """Method that runs through the sequence to use the apple proxy. Called
-            if the proxy service recieves True"""
+        """Method that runs through the sequence to use the apple proxy"""
         
         # specify the trial parameters
-        roll_points = 3
+        roll_points = 2
         self.generate_roll_values(roll_points)
         yaw_values = [0] # degrees
         offset_values = [5/1000] # meters
@@ -108,7 +111,8 @@ class User(Node):
                 # offset yaw for gripper alignment
                 for offset_value in offset_values:
                     for trial in range(num_trials):
-                        # record trial
+                        # record trial and update the total number of picks
+                        self.pick_number += 1
                         self.get_logger().info(f"Trial {trial+1} of {num_trials} at sampled roll location {roll_value}, yaw {yaw_value}, offset {offset_value}")
 
                         # move to starting position - ARM
@@ -123,14 +127,15 @@ class User(Node):
                             # Once I get TF working this will be automated
                         move_check = validate_user_input("Did the arm move to the correct location? (yes/no/skip this trial): ",
                                                          ["yes", "no", "skip this trial"])
-                        if move_check == "yes":
-                            pass
-                        elif move_check == "no":
-                            print("Replanning")
+                        
+                        while move_check != "yes":
+                            self.get_logger().info("Planning failed. Replanning now")
                             self.send_arm_request(ee_location=roll_value, ee_orientation=starting_orientation)
-                        elif move_check == "skip this trial":
-                            print("Skipping to the next trial")
-                            continue
+                            move_check = validate_user_input("Did the arm move to the correct location? (yes/no/skip this trial): ",
+                                                         ["yes", "no", "skip this trial"])
+
+                            if move_check == "skip this trial":
+                                break
 
                         # start rosbag recording
                         # add noise, if using
@@ -179,6 +184,7 @@ class User(Node):
                         # stop rosbag recording
 
                         # save metadata
+                        self.save_metadata()
 
     ##  ------------- SERVICE CLIENT CALLS ------------- ##
     def send_vacuum_request(self, vacuum_status):
@@ -334,6 +340,9 @@ class User(Node):
         cupC_engaged = validate_user_input("Is "+CGREEN+"suction cup C "+CEND+"engaged? (yes, no): ",
                                            ["yes", "no"])
         
+        d = {f"suction cup results {self.pick_number} [a,b,c]": [cupA_engaged, cupB_engaged, cupC_engaged]}
+        self.metadata.update(d)
+        
     def label_apple_pick(self):
         """Method to allow the user to label the apple pick result"""
 
@@ -345,6 +354,9 @@ class User(Node):
                                           "(d) Unsuccessful: apple not picked \n"
                                           "Result: ",
                                           ["a", "b", "c", "d"])
+        
+        d = {f"pick result {self.pick_number}": pick_result}
+        self.metadata.update(d)
     
     def create_marker_msg(self, type:int, position, scale, frame='world', color=[1.0,0.0,0.0,1.0], text=None) -> Marker:
         """Method to create a marker given input parameters"""
@@ -414,13 +426,29 @@ class User(Node):
                                                   ["dual", "suction", "fingers"])
         self.actuation_mode = actuation_mode
 
-        # compile and dump into yaml file
+        # compile and save to global metadata dictionary
         d = {"name":name, "experiment type":experiment_type, "pressure":pressure, "branch stiffness":stiffness, 
              "magnet force":magnet_force, "pick pattern":pick_pattern, "tracks":tracks, "actuation mode":actuation_mode}
 
-        # with open ("config/user_info.yaml", 'w') as yaml_file:
-        #     yaml.dump(d, yaml_file, default_flow_style=False, sort_keys=False)
+        self.metadata.update(d)
 
+    def save_metadata(self, file_name=None):
+        """Method to save the metadata for the completed pick experiment as a yaml file. If a filename is
+            not given, default to "<experiment type>_pick_metadata_<timestamp>.yaml"
+        """
+        if file_name is None:
+            file_name = f"data/{self.experiment_type}_pick_metadata_{str(time.time())}.yaml"
+        
+        try:
+            with open (file_name, 'w') as yaml_file:
+                yaml.dump(self.metadata, yaml_file, default_flow_style=False, sort_keys=False)
+        except:
+            self.get_logger().info("Failed to save metadata. Trying again at the parent directory")
+            with open (file_name, 'w') as yaml_file:
+                yaml.dump(self.metadata, yaml_file, default_flow_style=False, sort_keys=False)
+
+        self.get_logger().info("Saved experiment metadata")
+    
     def configure_parameter_yaml(self, insert_dict, node_name="user", file_name="params.yaml"):
         """Method for formatting a yaml file that can be read as
             ros params"""
@@ -436,6 +464,7 @@ def main(args=None):
     rclpy.init(args=args)
     # instantiate the class
     my_user = User()
+    # run the proxy pick sequence
     my_user.get_user_info()
     input("Hit enter to start proxy test: ")
     my_user.proxy_pick_sequence()
