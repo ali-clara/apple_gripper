@@ -7,6 +7,7 @@
 
 # ROS imports
 import rclpy
+from rclpy.duration import Duration
 from rclpy.node import Node
 from geometry_msgs.msg import Pose, PoseStamped
 from gripper_msgs.srv import MoveArm, SetArmGoal, GetArmPosition
@@ -30,7 +31,7 @@ class ArmControl(Node):
         # set up service clients
         self.arm_service_client = self.create_client(MoveArm, 'move_arm')
         self.get_logger().info("Waiting for arm service")
-        # self.arm_service_client.wait_for_service()
+        self.arm_service_client.wait_for_service()
 
         # set up some TF stuff
         self.tf_buffer = Buffer()
@@ -46,7 +47,7 @@ class ArmControl(Node):
                                             orientation=request.goal_ee_orientation,
                                             frame=request.frame)
         
-        self.send_arm_goal(goal_pose)
+        self.send_arm_goal(goal_pose, request.move_cartesian)
 
         response.result = True
         return response
@@ -55,16 +56,22 @@ class ArmControl(Node):
         """Callback function for the position request service. Sends a PoseStamped
         message of the current end effector position in the desired frame"""
 
-        self.get_logger().info(f"Returning end effector position in the {request.frame} frame")
-        ee_in_new_frame = self.get_current_pose(request.frame)
-        response.current_ee_pose = ee_in_new_frame
+        self.get_logger().info(f"Requesting end effector position in the {request.frame} frame")
+        
+        try:
+            ee_in_new_frame = self.get_current_pose(request.frame)
+            response.current_ee_pose = ee_in_new_frame
+        except TransformException as e:
+            self.get_logger().info(f"Transform failed {e}")
+            dummy_frame = PoseStamped()
+            response.current_ee_pose = dummy_frame
 
         return response
 
     
     ##  ------------- SERVICE CLIENT CALLS ------------- ##
 
-    def send_arm_goal(self, goal_pose:PoseStamped):
+    def send_arm_goal(self, goal_pose:PoseStamped, move_cartesian:bool):
         """Function to call arm service.
             Inputs - 
                 goal_pose: PoseStamped message containing the location, orientation, and reference frame
@@ -73,16 +80,10 @@ class ArmControl(Node):
         # build the request
         request = MoveArm.Request()
         request.ee_goal = goal_pose
+        request.move_cartesian = move_cartesian
 
         # make the service call (asynchronously)
         self.move_arm_response = self.arm_service_client.call_async(request)
-
-        failed_attempts = 0
-
-        if self.move_arm_response.result:
-            self.get_logger().info("Arm successfully moved to the goal position!")
-        else:
-            self.get_logger().info("Arm failed to move or plan. Retrying")
 
     ##  ------------- HELPER FUNCTIONS ------------- ##
     def build_pose_stamped(self, position, frame, orientation=[0.0,0.0,0.0,1.0]) -> PoseStamped:
@@ -109,9 +110,23 @@ class ArmControl(Node):
         Inputs - frame_id (string): frame you want the end effector position in
         """
         origin = self.build_pose_stamped(position=[0.0,0.0,0.0], frame="suction_gripper")
-        transformed_pose = self.tf_buffer.transform(origin, frame_id, rclpy.duration.Duration(seconds=1))
+        transformed_pose = self.tf_buffer.transform(origin, frame_id, timeout=Duration(seconds=10.0))
 
         return transformed_pose
+    
+    def transform_to_world_frame(self, pose_stamped:PoseStamped):
+        """Method that converts any given pose stamped message to the world frame"""
+
+        successful_transform = False
+        while not successful_transform:
+            try:
+                new_pose = self.tf_buffer.transform(pose_stamped, "world", Duration(seconds=2.0))
+                successful_transform = True
+            except TransformException as e:
+                self.get_logger().info(f"Transform failed, trying again: {e}")
+
+        return new_pose
+
 
 
 def main(args=None):

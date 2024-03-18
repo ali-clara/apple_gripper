@@ -13,6 +13,7 @@ find_package(rclpy REQUIRED)
 find_package(gripper_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
+find_package(moveit_msgs REQUIRED)
 
 # include cpp "include" directory
 include_directories(include)
@@ -23,7 +24,7 @@ add_executable(moveit_service src/moveit_service.cpp)
 
 # define cpp dependencies
 ament_target_dependencies(cpp_node rclcpp)
-ament_target_dependencies(moveit_service rclcpp moveit_ros_planning_interface std_msgs geometry_msgs gripper_msgs)
+ament_target_dependencies(moveit_service rclcpp moveit_ros_planning_interface std_msgs geometry_msgs gripper_msgs moveit_msgs)
 
 # install cpp executables
 install(TARGETS

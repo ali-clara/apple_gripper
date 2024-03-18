@@ -35,6 +35,9 @@ def generate_launch_description():
                 'ur_moveit_launch.py'
             ])
         ]),
+        # launch_arguments={
+        #     "use_sim_time": "true",
+        # }.items()
     ))
     
     # Launch the node to control gripper functionality

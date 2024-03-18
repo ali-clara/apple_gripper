@@ -1,5 +1,6 @@
 # inputs
 geometry_msgs/PoseStamped ee_goal
+bool move_cartesian
 ---
 # outputs
 bool result

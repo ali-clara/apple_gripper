@@ -115,7 +115,7 @@ def launch_setup(context, *args, **kwargs):
     robot_description_semantic_content = Command([
             PathJoinSubstitution([FindExecutable(name="xacro")]),
             " ",
-            PathJoinSubstitution([FindPackageShare(moveit_config_package), "srdf", moveit_config_file]),
+            PathJoinSubstitution([FindPackageShare(description_package), "urdf", moveit_config_file]),
             " ",
             "name:=","ur",
             # Also ur_type parameter could be used but then the planning group names in yaml

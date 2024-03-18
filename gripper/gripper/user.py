@@ -11,6 +11,8 @@ from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Pose, PoseStamped
 from rcl_interfaces.msg import ParameterDescriptor
 
+from tf_transformations import euler_from_quaternion, quaternion_about_axis, quaternion_from_euler
+
 # standard imports
 import numpy as np
 import matplotlib.pyplot as plt
@@ -86,7 +88,16 @@ class User(Node):
         self.branch_stiffness = "medium"
         self.magnet_force = "medium"
 
-        # self.end_effector_starting_position = self.get_arm_position("world")
+        suction_cup_give = 0.01 # meters
+        self.approach_distance = 2*suction_cup_give + (self.sampling_sphere_diameter - self.apple_diameter)/2
+        self.retrieve_distance = -0.130
+
+        # self.get_logger().info("Trying to get start position")
+        # for _ in range(10):
+        #     self.get_arm_position("world")
+        #     self.get_logger().info(f"got {self.current_arm_position}")
+
+        # self.end_effector_starting_position = self.current_arm_position
         # self.get_logger().info(f"Starting end effector position: {self.end_effector_starting_position}")
 
         self.save_directory = os.path.abspath(os.path.join(os.getcwd(), os.pardir, 'config'))
@@ -95,7 +106,7 @@ class User(Node):
         """Method that runs through the sequence to use the apple proxy. Called
             if the proxy service recieves True"""
         
-        roll_points = 7
+        roll_points = 3
         self.generate_roll_values(roll_points)
 
         yaw_values = [0] # degrees
@@ -123,17 +134,20 @@ class User(Node):
                 for offset_value in offset_values:
                     for trial in range(num_trials):
                         # record trial
-                        self.get_logger().info(f"Trial {trial+1}: sampled roll location {roll_value}, yaw {yaw_value}, offset {offset_value}")
+                        self.get_logger().info(f"Trial {trial+1} of {num_trials} at sampled roll location {roll_value}, yaw {yaw_value}, offset {offset_value}")
 
                         # move to starting position - ARM
+                        self.get_logger().info("Moving to initial sample position")
                         starting_position = roll_value
+                        starting_orientation, unit_vector = self.find_tangent_orientation(roll_value)
+
                         roll_marker = self.create_marker_msg(type=2, position=roll_value, scale=[0.01]*3, color=[0.0,0.0,1.0,1.0])
                         self.apple_markers_publisher.publish(roll_marker)
-                        self.send_arm_request(ee_location=starting_position)
-                        self.get_logger().info("Moving to initial sample position")
-                        self.get_logger().info(f"Sending goal to arm: {starting_position}")
 
-                        move_check = input("Did the arm move to the correct location?")
+                        self.get_logger().info(f"Sending goal to arm: {starting_position}, {starting_orientation}")
+                        self.send_arm_request(ee_location=starting_position, ee_orientation=starting_orientation)
+                        
+                        move_check = input("Did the arm move to the correct location? ")
                         if move_check == "yes":
                             pass
                         else:
@@ -151,11 +165,17 @@ class User(Node):
 
                         # approach apple - ARM
                             # stops early if suction engages - GRIPPER
-                        apple_approach_pose = roll_value
-                        self.send_arm_request(ee_location=apple_approach_pose)
                         self.get_logger().info("Moving to approach the apple")
-                        self.get_logger().info(f"Sending goal to arm: {apple_approach_pose}")
+                        apple_approach_position = (np.array(starting_position) + self.approach_distance*unit_vector).tolist()
+                        
+                        # [roll_value[0], roll_value[1], roll_value[2]+self.approach_distance]
 
+                        approach_marker = self.create_marker_msg(type=2, position=apple_approach_position, scale=[0.01]*3, color=[0.0,1.0,1.0,1.0])
+                        self.apple_markers_publisher.publish(approach_marker)
+
+                        self.get_logger().info(f"Sending goal to arm: {apple_approach_position}, {starting_orientation}")
+                        self.send_arm_request(ee_location=apple_approach_position, ee_orientation=starting_orientation, move_cartesian=True)
+                        
                         # manually label cup engagement
                         self.label_suction_cups()
                         # engage fingers - GRIPPER
@@ -164,11 +184,15 @@ class User(Node):
                             self.get_logger().info("Fingers engaged")
 
                         # move away from apple - ARM
-                        apple_retrieve_pose = roll_value
-                        self.send_arm_request(ee_location=apple_retrieve_pose)
                         self.get_logger().info("Retrieving the apple")
-                        self.get_logger().info(f"Sending goal to arm: {apple_retrieve_pose}")
-                            
+                        # apple_retrieve_pose = [-0.7, -0.45, 1.0]
+                        apple_retrieve_position = (np.array(apple_approach_position) + self.retrieve_distance*unit_vector).tolist()
+                        retrieve_marker = self.create_marker_msg(type=2, position=apple_retrieve_position, scale=[0.01]*3, color=[0.0,1.0,1.0,1.0])
+                        self.apple_markers_publisher.publish(retrieve_marker)
+
+                        self.get_logger().info(f"Sending goal to arm: {apple_retrieve_position}, {starting_orientation}")
+                        self.send_arm_request(ee_location=apple_retrieve_position, ee_orientation=starting_orientation, move_cartesian=True)
+                    
                         # manually label apple pick
                         self.label_apple_pick()
                         # disengage fingers - GRIPPER
@@ -180,7 +204,6 @@ class User(Node):
                         self.get_logger().info("Gripper vacuum off")
                         # stop rosbag recording
                         # save metadata
-                        pass
 
     ##  ------------- SERVICE CLIENT CALLS ------------- ##
     def send_vacuum_request(self, vacuum_status):
@@ -203,7 +226,7 @@ class User(Node):
         # make the service call (asynchronously)
         self.fingers_response = self.fingers_service_client.call_async(request)
 
-    def send_arm_request(self, ee_location, ee_orientation=[0.0,0.0,0.0,1.0], ee_frame="world"):
+    def send_arm_request(self, ee_location, ee_orientation=[0.0,0.0,0.0,1.0], ee_frame="world", move_cartesian=False):
         """Method to call arm service.
             Inputs - 
                 ee_location (float64 array): End effector goal position
@@ -216,6 +239,7 @@ class User(Node):
         request.goal_ee_location = ee_location
         request.goal_ee_orientation = ee_orientation
         request.frame = ee_frame
+        request.move_cartesian = move_cartesian
 
         # make the service call (asynchronously)
         self.arm_response = self.arm_service_client.call_async(request)
@@ -231,7 +255,8 @@ class User(Node):
         request.frame = frame
 
         # make the service call
-        self.current_arm_position = self.get_pos_service_client.call(request)
+        self.current_arm_position = self.get_pos_service_client.call_async(request).result()
+        self.get_logger().info(self.current_arm_position)
     
     ## ------------- HELPER FUNCTIONS  ------------- ##
     def generate_roll_values(self, n_values: int, angle_range_deg=135, plot=False):
@@ -270,11 +295,37 @@ class User(Node):
             ax.set_ylabel("Y-axis")
             plt.show()
 
-    def find_tangent_orientation(self):
-        """Method that finds the orientation tangent to the apple at the given
-            sampled roll point."""
-        pass
+    def find_tangent_orientation(self, current_roll_value):
+        """Method that finds the orientation tangent to a sphere at the given
+            sampled roll point.\n
+            Inputs - current_roll_value (list or array): x,y,z location of sphere\n
+            Returns - q (tuple): quaternion representing the angle
+                center_unit_vector (np.array): vector from the sampled point to the center of the sphere
+            """
+        # step 1 - find the vector pointing to the center of the sphere
+        delta_x = current_roll_value[0] - self.apple_location[0]
+        delta_y = current_roll_value[1] - self.apple_location[1]
+        delta_z = current_roll_value[2] - self.apple_location[2]
 
+        center_vector = np.array([-delta_x, -delta_y, -delta_z])
+        vector_length = np.linalg.norm(center_vector)
+        center_unit_vector = center_vector / vector_length
+
+        # step 2 - make the cross product between that vector and the vector normal to the palm 
+            # to obtain the rotation vector
+        
+        normal_vector = [0, 1, 0]
+        rotation_vector = np.cross(normal_vector, center_unit_vector)
+
+        # step 3 - find the angle of rotation via the dot product
+        dot = np.dot(normal_vector, center_unit_vector)
+        angle = np.arccos(dot)
+
+        # step 4 - find the quaternion from the single axis rotation
+        q = quaternion_about_axis(angle, rotation_vector)
+
+        return q, center_unit_vector
+        
     def label_suction_cups(self):
         """Method to allow the user to label the suction cup engagement after
             the initial approach
