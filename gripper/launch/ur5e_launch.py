@@ -123,7 +123,7 @@ def generate_launch_description():
 
     # set the rviz configuration file
     rviz_config_file = PathJoinSubstitution([
-        FindPackageShare(description_package), "config", "rviz_world_config.rviz"])
+        FindPackageShare(description_package), "config", "test_world.rviz"])
 
     # Nodes to launch
     joint_state_publisher_node = Node(
