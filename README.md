@@ -89,7 +89,7 @@ This loads the following scene, showing the UR5e and apple proxy with the TF tre
 
 ### Suction gripper Pyserial interface (optional)
 
-The ROS2 node `suction_gripper` communicates with an Arduino through Pyserial to control the suction gripper vacuum and fingers. When it recieves a service call, it sends an integer between 1-4 corresponding to vacuum on/off and fingers engaged/disengaged. Currently, the Arduino script just contains a dummy framework for controlling the gripper that can easily be built upon.
+The ROS2 node `suction_gripper` communicates with an Arduino through Pyserial to control the suction gripper vacuum and fingers. When it recieves a service call, it sends an integer between 1-4 corresponding to vacuum on/off and fingers engaged/disengaged. Currently, the Arduino script just contains a dummy framework that can be easily expanded for full gripper control and functionality.
 
 Connect to an Arduino of your choice, and upload `pyserial_test.ino` from the *gripper/arduino* directory using the ArduinoIDE. Ensure the **baud rate** and **port** match the baud and port set in `suction_gripper.py`. This demo is using an Ardunio UNO with a baud rate of 115200 on port /dev/ttyACM0.
 
