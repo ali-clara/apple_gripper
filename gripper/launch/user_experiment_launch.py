@@ -11,4 +11,5 @@ def generate_launch_description():
             parameters=[os.path.join(get_package_share_directory('gripper'),'config','apple_proxy_parameters.yaml'),
                         ]
         ),
+        
     ])

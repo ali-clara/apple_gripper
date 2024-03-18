@@ -1,0 +1,8 @@
+# inputs
+float64[] goal_ee_location
+float64[] goal_ee_orientation
+string frame
+bool move_cartesian
+---
+# outputs
+bool result

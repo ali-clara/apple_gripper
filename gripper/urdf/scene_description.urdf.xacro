@@ -1,0 +1,153 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="$(arg name)">
+  <!-- robot name parameter -->
+  <xacro:arg name="name" default="ur"/>
+  <!-- import main ur macro (this lives in the UR_ROS2_Description package)-->
+  <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
+
+  <!-- possible 'ur_type' values: ur3, ur3e, ur5, ur5e, ur10, ur10e, ur16e, ur20, ur30 -->
+  <!-- the default value should raise an error in case this was called without defining the type -->
+  <xacro:arg name="ur_type" default="ur5x"/>
+
+  <!-- ur parameters -->
+  <xacro:arg name="tf_prefix" default="" />
+  <xacro:arg name="joint_limit_params" default="$(find gripper)/config/$(arg ur_type)/joint_limits.yaml"/>
+  <xacro:arg name="kinematics_params" default="$(find gripper)/config/$(arg ur_type)/default_kinematics.yaml"/>
+  <xacro:arg name="physical_params" default="$(find gripper)/config/$(arg ur_type)/physical_parameters.yaml"/>
+  <xacro:arg name="visual_params" default="$(find gripper)/config/$(arg ur_type)/visual_parameters.yaml"/>
+  <xacro:arg name="transmission_hw_interface" default=""/>
+  <xacro:arg name="safety_limits" default="false"/>
+  <xacro:arg name="safety_pos_margin" default="0.15"/>
+  <xacro:arg name="safety_k_position" default="20"/>
+
+  <!--When using gazebo simulations absolute paths are necessary.-->
+  <xacro:arg name="force_abs_paths" default="false"/>
+
+  <!--Setting some global params for making the scene-->
+  <material name="grey">
+    <color rgba="0.5 0.5 0.5 1"/>
+  </material>
+
+  <material name="blue">
+    <color rgba="0.4 0.6 0.8 1"/>
+  </material>
+
+  <material name="green">
+    <color rgba="0 1 0 0.7"/>
+  </material>
+
+  <material name = "orange">
+    <color rgba = "0.86 0.37 0.13 1"/>
+  </material>
+
+  <!-- create link fixed to the "world" -->
+  <link name="world"/>
+
+  <!--Define the objects-->
+  <!--TODO - FIGURE OUT WHY RELATIVE PACKAGE PATHS AREN'T WORKING-->
+  <link name="big_table">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file:///home/aliclara/ros2_ws/src/apple_gripper/gripper/meshes/collision/UR5_big_table.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file:///home/aliclara/ros2_ws/src/apple_gripper/gripper/meshes/collision/UR5_big_table.STL" scale="1.0 1.0 1.0"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="small_table">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file:///home/aliclara/ros2_ws/src/apple_gripper/gripper/meshes/collision/UR5_small_table.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file:///home/aliclara/ros2_ws/src/apple_gripper/gripper/meshes/collision/UR5_small_table.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="apple_proxy">
+    <visual>
+      <origin xyz="-0.11498 0.7701 0" rpy="0 0 -1.5708"/>
+      <geometry>
+        <mesh filename="file:///home/aliclara/ros2_ws/src/apple_gripper/gripper/meshes/visual/apple_proxy_visual.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file:///home/aliclara/ros2_ws/src/apple_gripper/gripper/meshes/collision/apple_proxy_collision.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="suction_gripper" >
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file:///home/aliclara/ros2_ws/src/apple_gripper/gripper/meshes/visual/Gripper_Suction.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+      <collision>
+      <origin xyz="0 0 0" rpy="-1.5708 0 0"/>
+      <geometry>
+        <mesh filename="file:///home/aliclara/ros2_ws/src/apple_gripper/gripper/meshes/collision/Gripper_Suction_collision.STL" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- load the macro for the arm, with given params -->
+  <xacro:ur_robot
+    name="$(arg name)"
+    tf_prefix="$(arg tf_prefix)"
+    parent="small_table"
+    joint_limits_parameters_file="$(arg joint_limit_params)"
+    kinematics_parameters_file="$(arg kinematics_params)"
+    physical_parameters_file="$(arg physical_params)"
+    visual_parameters_file="$(arg visual_params)"
+    safety_limits="$(arg safety_limits)"
+    safety_pos_margin="$(arg safety_pos_margin)"
+    safety_k_position="$(arg safety_k_position)" 
+    >
+    <origin xyz="0.35 0.357 0.858" rpy="0.0 0.0 3.1416" />
+  </xacro:ur_robot>
+
+  <!-- Describe the relationships between the objects -->
+  <joint name="world_to_big_table" type="fixed">
+    <parent link="world"/>
+    <child link="big_table"/>
+    <origin xyz="0 0 0" rpy="0 0 1.5708" />
+  </joint>
+
+  <joint name="world_to_small_table" type="fixed">
+    <parent link="world"/>
+    <child link="small_table" />
+    <origin xyz="-0.155 -1.35 0" rpy="0 0 1.5708" /> 
+  </joint>
+
+  <joint name = "big_table_to_apple_proxy" type="fixed"> 
+    <parent link = "big_table" /> 
+    <child link = "apple_proxy" /> 
+    <origin xyz = "0.4572 0.91 0.895" rpy="1.5708 0 -1.5708" />
+  </joint>
+
+  <joint name="robotiq_coupler_joint" type="fixed">
+    <parent link="tool0" />
+    <child link="suction_gripper" />
+    <origin xyz="0 0 0.162" rpy="1.5708 0 0.44" />
+  </joint>
+
+</robot>

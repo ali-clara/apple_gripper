@@ -6,15 +6,17 @@
 # ROS imports
 import rclpy
 from rclpy.node import Node
-from gripper_msgs.srv import GripperFingers, GripperVacuum, MoveArm
+from gripper_msgs.srv import GripperFingers, GripperVacuum, SetArmGoal, GetArmPosition
 from visualization_msgs.msg import Marker
 from rcl_interfaces.msg import ParameterDescriptor
+
+from tf_transformations import euler_from_quaternion, quaternion_about_axis, quaternion_from_euler
 
 # standard imports
 import numpy as np
 import matplotlib.pyplot as plt
 import yaml
-import time
+import os
 
 def validate_user_input(input_str: str, val_str_list) -> str:
     """Helper function for validating user input. Checks if a given input from the
@@ -40,18 +42,23 @@ class User(Node):
         self.get_logger().info("Waiting for gripper finger server")
         self.fingers_service_client.wait_for_service()
 
-        self.arm_service_client = self.create_client(MoveArm, 'move_arm_goal')
+        self.get_pos_service_client = self.create_client(GetArmPosition, 'get_arm_position')
+        self.get_logger().info("Waiting for position server")
+        self.get_pos_service_client.wait_for_service()
+
+        self.arm_service_client = self.create_client(SetArmGoal, 'set_arm_goal')
         self.get_logger().info("Waiting for arm service")
         self.arm_service_client.wait_for_service()
 
         # set up publishers and subscribers
-        self.apple_markers_publisher = self.create_publisher(Marker, 'apple_markers', 1)
+        self.apple_markers_publisher = self.create_publisher(Marker, 'apple_markers', 10)
+        self.get_logger().info("Started marker publisher")
 
         # set up parameters, make them dynamic to allow setting from yaml file
         self.declare_parameters(
             namespace = '',
             parameters = [
-                ('apple_pose', None, ParameterDescriptor(dynamic_typing=True)),
+                ('apple_location', None, ParameterDescriptor(dynamic_typing=True)),
                 ('stem_pose', None, ParameterDescriptor(dynamic_typing=True)),
                 ('apple_diameter', None, ParameterDescriptor(dynamic_typing=True)),
                 ('apple_height', None, ParameterDescriptor(dynamic_typing=True)),
@@ -59,17 +66,11 @@ class User(Node):
             ],
             )
 
-        # playing with parameter stuff
-        params = self._parameters
-        self.param_names = list(params.keys())
-        param_objects = list(params.values())
-
         # class variables
         self.markers_published = 0
 
         self.roll_values = {"x": [], "y": [], "z": []}
-        self.apple_pose = self.get_parameter('apple_pose').get_parameter_value().double_array_value
-        print(self.apple_pose)
+        self.apple_location = self.get_parameter('apple_location').get_parameter_value().double_array_value
         self.apple_diameter = self.get_parameter('apple_diameter').get_parameter_value().double_value
         sampling_sphere_ratio = self.get_parameter('sampling_sphere_ratio').get_parameter_value().double_value
         self.sampling_sphere_diameter = self.apple_diameter * sampling_sphere_ratio
@@ -78,39 +79,59 @@ class User(Node):
         self.actuation_mode = "dual"
         self.branch_stiffness = "medium"
         self.magnet_force = "medium"
+
+        suction_cup_give = 0.01 # meters
+        self.approach_distance = 2*suction_cup_give + (self.sampling_sphere_diameter - self.apple_diameter)/2
+        self.retrieve_distance = -0.130
+
+        self.save_directory = os.path.abspath(os.path.join(os.getcwd(), os.pardir, 'config'))
     
     def proxy_pick_sequence(self):
         """Method that runs through the sequence to use the apple proxy. Called
             if the proxy service recieves True"""
-
-        roll_points = 1
-        roll_values = self.generate_roll_values(roll_points)
-
+        
+        # specify the trial parameters
+        roll_points = 3
+        self.generate_roll_values(roll_points)
         yaw_values = [0] # degrees
         offset_values = [5/1000] # meters
         num_trials = 1
 
         # create and publish markers at the apple and sampling sphere location
-        # nab the most updated version of the apple position parameter
-        apple_pose = self.get_parameter('apple_pose').get_parameter_value().double_array_value
-        apple_marker = self.create_marker_msg(type=2, position=apple_pose, scale=[self.apple_diameter]*3)
-        sampling_sphere = self.create_marker_msg(type=2, position=apple_pose, scale=[self.sampling_sphere_diameter]*3, color=[0.0,1.0,0.0,0.3])
-        self.apple_markers_publisher.publish(apple_marker)
-        self.apple_markers_publisher.publish(sampling_sphere)
+        self.update_and_publish_apple()
 
+        # Run through all the points to sample: each roll point can have several yaw tests, offsets, and trials
         for roll_point in range(roll_points):
+            roll_value = [self.roll_values["x"][roll_point], self.roll_values["y"][roll_point], self.roll_values["z"][roll_point]]
             # set pick distance
             for yaw_value in yaw_values:
                 # offset yaw for gripper alignment
                 for offset_value in offset_values:
                     for trial in range(num_trials):
                         # record trial
+                        self.get_logger().info(f"Trial {trial+1} of {num_trials} at sampled roll location {roll_value}, yaw {yaw_value}, offset {offset_value}")
 
                         # move to starting position - ARM
-                        apple_sampling_pose = self.apple_pose
-                        self.send_arm_request(move_to=apple_sampling_pose)
                         self.get_logger().info("Moving to initial sample position")
-                        self.get_logger().info(f"Sending goal to arm: {apple_sampling_pose}")
+                        starting_orientation, unit_vector = self.find_tangent_orientation(roll_value)
+                        roll_marker = self.create_marker_msg(type=2, position=roll_value, scale=[0.01]*3, color=[0.0,0.0,1.0,1.0])
+                        self.apple_markers_publisher.publish(roll_marker)
+                        self.get_logger().info(f"Sending goal to arm: {roll_value}, {starting_orientation}")
+                        self.send_arm_request(ee_location=roll_value, ee_orientation=starting_orientation)
+                        
+                        # Pause the sequence to ensure the arm moves to the correct spot
+                            # Once I get TF working this will be automated
+                        move_check = validate_user_input("Did the arm move to the correct location? (yes/no/skip this trial): ",
+                                                         ["yes", "no", "skip this trial"])
+                        if move_check == "yes":
+                            pass
+                        elif move_check == "no":
+                            print("Replanning")
+                            self.send_arm_request(ee_location=roll_value, ee_orientation=starting_orientation)
+                        elif move_check == "skip this trial":
+                            print("Skipping to the next trial")
+                            continue
+
                         # start rosbag recording
                         # add noise, if using
 
@@ -122,24 +143,29 @@ class User(Node):
 
                         # approach apple - ARM
                             # stops early if suction engages - GRIPPER
-                        apple_approach_pose = self.apple_pose
-                        self.send_arm_request(move_to=apple_approach_pose)
                         self.get_logger().info("Moving to approach the apple")
-                        self.get_logger().info(f"Sending goal to arm: {apple_approach_pose}")
-
+                        apple_approach_position = (np.array(roll_value) + self.approach_distance*unit_vector).tolist()
+                        approach_marker = self.create_marker_msg(type=2, position=apple_approach_position, scale=[0.01]*3, color=[0.0,1.0,1.0,1.0])
+                        self.apple_markers_publisher.publish(approach_marker)
+                        self.get_logger().info(f"Sending goal to arm: {apple_approach_position}, {starting_orientation}")
+                        self.send_arm_request(ee_location=apple_approach_position, ee_orientation=starting_orientation, move_cartesian=True)
+                        
                         # manually label cup engagement
                         self.label_suction_cups()
+
                         # engage fingers - GRIPPER
                         if self.actuation_mode == "fingers" or self.actuation_mode == "dual":
                             self.send_fingers_request(fingers_status=True)
                             self.get_logger().info("Fingers engaged")
 
                         # move away from apple - ARM
-                        apple_retrieve_pose = self.apple_pose
-                        self.send_arm_request(move_to=apple_retrieve_pose)
                         self.get_logger().info("Retrieving the apple")
-                        self.get_logger().info(f"Sending goal to arm: {apple_retrieve_pose}")
-                            
+                        apple_retrieve_position = (np.array(apple_approach_position) + self.retrieve_distance*unit_vector).tolist()
+                        retrieve_marker = self.create_marker_msg(type=2, position=apple_retrieve_position, scale=[0.01]*3, color=[0.0,1.0,1.0,1.0])
+                        self.apple_markers_publisher.publish(retrieve_marker)
+                        self.get_logger().info(f"Sending goal to arm: {apple_retrieve_position}, {starting_orientation}")
+                        self.send_arm_request(ee_location=apple_retrieve_position, ee_orientation=starting_orientation, move_cartesian=True)
+                    
                         # manually label apple pick
                         self.label_apple_pick()
                         # disengage fingers - GRIPPER
@@ -149,9 +175,10 @@ class User(Node):
                         # turn off vacuum - GRIPPER
                         self.send_vacuum_request(vacuum_status=False)
                         self.get_logger().info("Gripper vacuum off")
+
                         # stop rosbag recording
+
                         # save metadata
-                        pass
 
     ##  ------------- SERVICE CLIENT CALLS ------------- ##
     def send_vacuum_request(self, vacuum_status):
@@ -174,20 +201,43 @@ class User(Node):
         # make the service call (asynchronously)
         self.fingers_response = self.fingers_service_client.call_async(request)
 
-    def send_arm_request(self, move_to):
-        """Function to call arm service.
-            Inputs - move_to (float64 array): End effector goal position in the world frame
+    def send_arm_request(self, ee_location, ee_orientation=[0.0,0.0,0.0,1.0], ee_frame="world", move_cartesian=False):
+        """Method to call arm service.
+            Inputs - 
+                ee_location (float64 array): End effector goal position
+                ee_orientation (float64 array): End effector goal orientation. Defaults to whatever
+                frame (string): Reference frame of the given location and orientation
+
         """
         # build the request
-        request = MoveArm.Request()
-        request.ee_position = move_to
+        request = SetArmGoal.Request()
+        request.goal_ee_location = ee_location
+        request.goal_ee_orientation = ee_orientation
+        request.frame = ee_frame
+        request.move_cartesian = move_cartesian
+
         # make the service call (asynchronously)
         self.arm_response = self.arm_service_client.call_async(request)
+
+    def get_arm_position(self, frame="world"):
+        """Method to get the end effector position in the specified frame
+        
+        Inputs - frame (string): Desired frame. Defaults to world
+        """
+
+        # build the request
+        request = GetArmPosition.Request()
+        request.frame = frame
+
+        # make the service call
+        self.current_arm_position = self.get_pos_service_client.call_async(request).result()
+        self.get_logger().info(self.current_arm_position)
     
     ## ------------- HELPER FUNCTIONS  ------------- ##
     def generate_roll_values(self, n_values: int, angle_range_deg=135, plot=False):
-        """Function that generates points along a 2D arc. Used to calculate the 
-            roll points to sample along the apple surface
+        """Method that generates points along a 2D arc. Used to calculate the 
+            roll points to sample along the apple surface. Saves the generated sample
+            points in the world frame to self.roll_values
 
             Inputs - n_values (int): number of points to generate
         """
@@ -198,14 +248,16 @@ class User(Node):
         # set the size of the sampling sphere
         sphere_rad = self.sampling_sphere_diameter / 2
 
+        # generate n_values points around the sampling sphere and find their coordinates in the world frame
         for i in range(n_values):
             angle = i * angle_step
             angle_deg = np.rad2deg(angle)
             self.get_logger().info(f"Sampling point {i} roll at {np.round(angle_deg,3)} degrees")
 
-            x = 0
-            y = -sphere_rad * np.sin(angle)
-            z = -sphere_rad * np.cos(angle)
+            # adjust by self.apple_location to transform into the world frame
+            x = 0 + self.apple_location[0]
+            y = -sphere_rad * np.sin(angle) + self.apple_location[1]
+            z = -sphere_rad * np.cos(angle) + self.apple_location[2]
 
             self.roll_values["x"].append(x)
             self.roll_values["y"].append(y)
@@ -218,6 +270,50 @@ class User(Node):
             ax.set_ylabel("Y-axis")
             plt.show()
 
+    def find_tangent_orientation(self, current_roll_value):
+        """Method that finds the orientation tangent to a sphere at the given
+            sampled roll point.\n
+            Inputs - current_roll_value (list or array): x,y,z location of sphere\n
+            Returns - q (tuple): quaternion representing the angle
+                center_unit_vector (np.array): vector from the sampled point to the center of the sphere
+            """
+        # step 1 - find the vector pointing to the center of the sphere
+        delta_x = current_roll_value[0] - self.apple_location[0]
+        delta_y = current_roll_value[1] - self.apple_location[1]
+        delta_z = current_roll_value[2] - self.apple_location[2]
+
+        center_vector = np.array([-delta_x, -delta_y, -delta_z])
+        vector_length = np.linalg.norm(center_vector)
+        center_unit_vector = center_vector / vector_length
+
+        # step 2 - make the cross product between that vector and the vector normal to the palm 
+            # to obtain the rotation vector
+        
+        normal_vector = [0, 1, 0]
+        rotation_vector = np.cross(normal_vector, center_unit_vector)
+
+        # step 3 - find the angle of rotation via the dot product
+        dot = np.dot(normal_vector, center_unit_vector)
+        angle = np.arccos(dot)
+
+        # step 4 - find the quaternion from the single axis rotation
+        q = quaternion_about_axis(angle, rotation_vector)
+
+        return q, center_unit_vector
+    
+    def update_and_publish_apple(self):
+        """Method that grabs the most recent apple location from the parameter
+            and publishes it as a marker"""
+        apple_location = self.get_parameter('apple_location').get_parameter_value().double_array_value.tolist()
+        self.get_logger().info(f"Apple location: {apple_location}")
+        apple_marker = self.create_marker_msg(type=2, position=apple_location, scale=[self.apple_diameter]*3)
+        sampling_sphere = self.create_marker_msg(type=2, position=apple_location, scale=[self.sampling_sphere_diameter]*3, color=[0.0,1.0,0.0,0.3])
+        self.apple_markers_publisher.publish(apple_marker)
+        self.apple_markers_publisher.publish(sampling_sphere)
+        self.get_logger().info("Published apple markers")
+
+        return apple_location
+        
     def label_suction_cups(self):
         """Method to allow the user to label the suction cup engagement after
             the initial approach
@@ -250,7 +346,7 @@ class User(Node):
                                           "Result: ",
                                           ["a", "b", "c", "d"])
     
-    def create_marker_msg(self, type:int, position, scale, frame='/map', color=[1.0,0.0,0.0,1.0], text=None) -> Marker:
+    def create_marker_msg(self, type:int, position, scale, frame='world', color=[1.0,0.0,0.0,1.0], text=None) -> Marker:
         """Method to create a marker given input parameters"""
         marker = Marker()
 
@@ -322,8 +418,8 @@ class User(Node):
         d = {"name":name, "experiment type":experiment_type, "pressure":pressure, "branch stiffness":stiffness, 
              "magnet force":magnet_force, "pick pattern":pick_pattern, "tracks":tracks, "actuation mode":actuation_mode}
 
-        with open ("config/user_info.yaml", 'w') as yaml_file:
-            yaml.dump(d, yaml_file, default_flow_style=False, sort_keys=False)
+        # with open ("config/user_info.yaml", 'w') as yaml_file:
+        #     yaml.dump(d, yaml_file, default_flow_style=False, sort_keys=False)
 
     def configure_parameter_yaml(self, insert_dict, node_name="user", file_name="params.yaml"):
         """Method for formatting a yaml file that can be read as
@@ -340,7 +436,7 @@ def main(args=None):
     rclpy.init(args=args)
     # instantiate the class
     my_user = User()
-    my_user.get_user_info()
+    # my_user.get_user_info()
     input("Hit enter to start proxy test: ")
     my_user.proxy_pick_sequence()
     # hand control over to ROS2
