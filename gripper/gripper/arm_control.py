@@ -3,13 +3,13 @@
 # This node communicates with the "hello_moveit" node (moveit_service.cpp). I didn't want
 # to write any more cpp than I had to, so this adds more functionality that could be in that executable
 # - gets the current location of the end effector, formants sends PoseStamped goals to the arm,
-# retries planning in case of faillure, etc
+# eventually will replan in case of faillure, etc
 
 # ROS imports
 import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
-from geometry_msgs.msg import Pose, PoseStamped
+from geometry_msgs.msg import PoseStamped
 from gripper_msgs.srv import MoveArm, SetArmGoal, GetArmPosition
 
 from tf2_ros import TransformException

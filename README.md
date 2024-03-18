@@ -1,6 +1,10 @@
 # Apple Gripper
 ### Repository for the ROS2 conversion of Alejo Velasquez's ROS1 framework
 
+<p align="center">
+  <img src="doc/gazebo_world.png">
+</p>
+
 **Depends:**
 
 - sudo apt install ros-humble-joint-state-publisher ros-humble-joint-state-publisher-gui

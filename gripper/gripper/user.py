@@ -52,7 +52,6 @@ class User(Node):
 
         # set up publishers and subscribers
         self.apple_markers_publisher = self.create_publisher(Marker, 'apple_markers', 10)
-        
         self.get_logger().info("Started marker publisher")
 
         # set up parameters, make them dynamic to allow setting from yaml file
