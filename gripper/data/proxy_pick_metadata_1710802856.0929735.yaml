@@ -1,0 +1,18 @@
+name: ali
+experiment type: proxy
+pressure: '60'
+branch stiffness: low
+magnet force: medium
+pick pattern: a
+tracks: b
+actuation mode: dual
+suction cup results 1 [a,b,c]:
+- 'no'
+- 'yes'
+- 'yes'
+pick result 1: a
+suction cup results 2 [a,b,c]:
+- 'yes'
+- 'no'
+- 'no'
+pick result 2: c
