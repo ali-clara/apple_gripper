@@ -14,14 +14,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="file:///home/aliclara/ros2_ws/src/apple_gripper/gripper/meshes/visual/Gripper_Suction.STL" scale="0.001 0.001 0.001"/>
+        <mesh filename="$(find gripper)/meshes/visual/Gripper_Suction.STL" scale="0.001 0.001 0.001"/>
       </geometry>
       <material name="blue"/>
     </visual>
       <collision>
       <origin xyz="0 0 0" rpy="-1.5708 0 0"/>
       <geometry>
-        <mesh filename="file:///home/aliclara/ros2_ws/src/apple_gripper/gripper/meshes/collision/Gripper_Suction_collision.STL" scale="0.001 0.001 0.001"/>
+        <mesh filename="$(find gripper)/meshes/collision/Gripper_Suction_collision.STL" scale="0.001 0.001 0.001"/>
       </geometry>
     </collision>
   </link>

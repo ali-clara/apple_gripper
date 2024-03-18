@@ -10,6 +10,7 @@ from gripper_msgs.srv import GripperVacuum, GripperFingers
 
 # standard imports
 import numpy as np
+import serial
 
 class SuctionGripper(Node):
     def __init__(self):
@@ -24,6 +25,11 @@ class SuctionGripper(Node):
         self.vacuum_on = False
         self.fingers_engaged = False
 
+        arduino_port = ""
+        baud = 9600
+        self.my_serial = serial.Serial(arduino_port, baud)
+        self.end_character = "#"
+
     def vacuum_service_callback(self, request, response):
         """Callback function for the vacuum service. Uses the bool stored in set_vacuum
             to turn the vacuum on or off
@@ -32,9 +38,11 @@ class SuctionGripper(Node):
         if request.set_vacuum:
             self.vacuum_on = True
             self.get_logger().info("Gripper vacuum on")
+            self.my_serial.write("vacuum:on"+self.end_character)
         elif not request.set_vacuum:
             self.vacuum_on = False
-            self.get_logger().info("Gripper vacuum off")
+            self.get_logger().info("Gripper vacuum off"+self.end_character)
+            self.my_serial.write("vacuum:off")
 
         response.result = True
         return response
@@ -46,10 +54,12 @@ class SuctionGripper(Node):
         # if the request is True, engage the fingers
         if request.set_fingers:
             self.fingers_engaged = True
-            self.get_logger().info("Fingers engaged")
+            self.get_logger().info("Fingers engaged"+self.end_character)
+            self.my_serial.write("fingers:on")
         elif not request.set_fingers:
             self.fingers_engaged = False
-            self.get_logger().info("Fingers disengaged")
+            self.get_logger().info("Fingers disengaged"+self.end_character)
+            self.my_serial.write("fingers:off")
 
         response.result = True
         return response

@@ -8,7 +8,6 @@ import rclpy
 from rclpy.node import Node
 from gripper_msgs.srv import GripperFingers, GripperVacuum, SetArmGoal, GetArmPosition
 from visualization_msgs.msg import Marker
-from geometry_msgs.msg import Pose, PoseStamped
 from rcl_interfaces.msg import ParameterDescriptor
 
 from tf_transformations import euler_from_quaternion, quaternion_about_axis, quaternion_from_euler
@@ -17,7 +16,6 @@ from tf_transformations import euler_from_quaternion, quaternion_about_axis, qua
 import numpy as np
 import matplotlib.pyplot as plt
 import yaml
-import time
 import os
 
 def validate_user_input(input_str: str, val_str_list) -> str:
@@ -69,11 +67,6 @@ class User(Node):
             ],
             )
 
-        # playing with parameter stuff
-        params = self._parameters
-        self.param_names = list(params.keys())
-        param_objects = list(params.values())
-
         # class variables
         self.markers_published = 0
 
@@ -92,42 +85,25 @@ class User(Node):
         self.approach_distance = 2*suction_cup_give + (self.sampling_sphere_diameter - self.apple_diameter)/2
         self.retrieve_distance = -0.130
 
-        # self.get_logger().info("Trying to get start position")
-        # for _ in range(10):
-        #     self.get_arm_position("world")
-        #     self.get_logger().info(f"got {self.current_arm_position}")
-
-        # self.end_effector_starting_position = self.current_arm_position
-        # self.get_logger().info(f"Starting end effector position: {self.end_effector_starting_position}")
-
         self.save_directory = os.path.abspath(os.path.join(os.getcwd(), os.pardir, 'config'))
     
     def proxy_pick_sequence(self):
         """Method that runs through the sequence to use the apple proxy. Called
             if the proxy service recieves True"""
         
+        # specify the trial parameters
         roll_points = 3
         self.generate_roll_values(roll_points)
-
         yaw_values = [0] # degrees
         offset_values = [5/1000] # meters
         num_trials = 1
 
         # create and publish markers at the apple and sampling sphere location
-        # nab the most updated version of the apple position parameter
-        apple_location = self.get_parameter('apple_location').get_parameter_value().double_array_value.tolist()
-        self.get_logger().info(f"apple location: {apple_location}")
+        self.update_and_publish_apple()
 
-        apple_marker = self.create_marker_msg(type=2, position=apple_location, scale=[self.apple_diameter]*3)
-        sampling_sphere = self.create_marker_msg(type=2, position=apple_location, scale=[self.sampling_sphere_diameter]*3, color=[0.0,1.0,0.0,0.3])
-        self.apple_markers_publisher.publish(apple_marker)
-        self.apple_markers_publisher.publish(sampling_sphere)
-        self.get_logger().info("Published apple markers")
-
+        # Run through all the points to sample: each roll point can have several yaw tests, offsets, and trials
         for roll_point in range(roll_points):
-            # i = roll_point - 1
             roll_value = [self.roll_values["x"][roll_point], self.roll_values["y"][roll_point], self.roll_values["z"][roll_point]]
-
             # set pick distance
             for yaw_value in yaw_values:
                 # offset yaw for gripper alignment
@@ -138,21 +114,24 @@ class User(Node):
 
                         # move to starting position - ARM
                         self.get_logger().info("Moving to initial sample position")
-                        starting_position = roll_value
                         starting_orientation, unit_vector = self.find_tangent_orientation(roll_value)
-
                         roll_marker = self.create_marker_msg(type=2, position=roll_value, scale=[0.01]*3, color=[0.0,0.0,1.0,1.0])
                         self.apple_markers_publisher.publish(roll_marker)
-
-                        self.get_logger().info(f"Sending goal to arm: {starting_position}, {starting_orientation}")
-                        self.send_arm_request(ee_location=starting_position, ee_orientation=starting_orientation)
+                        self.get_logger().info(f"Sending goal to arm: {roll_value}, {starting_orientation}")
+                        self.send_arm_request(ee_location=roll_value, ee_orientation=starting_orientation)
                         
-                        move_check = input("Did the arm move to the correct location? ")
+                        # Pause the sequence to ensure the arm moves to the correct spot
+                            # Once I get TF working this will be automated
+                        move_check = validate_user_input("Did the arm move to the correct location? (yes/no/skip this trial): ",
+                                                         ["yes", "no", "skip this trial"])
                         if move_check == "yes":
                             pass
-                        else:
-                            print("should replan")
-                            break
+                        elif move_check == "no":
+                            print("Replanning")
+                            self.send_arm_request(ee_location=roll_value, ee_orientation=starting_orientation)
+                        elif move_check == "skip this trial":
+                            print("Skipping to the next trial")
+                            continue
 
                         # start rosbag recording
                         # add noise, if using
@@ -166,18 +145,15 @@ class User(Node):
                         # approach apple - ARM
                             # stops early if suction engages - GRIPPER
                         self.get_logger().info("Moving to approach the apple")
-                        apple_approach_position = (np.array(starting_position) + self.approach_distance*unit_vector).tolist()
-                        
-                        # [roll_value[0], roll_value[1], roll_value[2]+self.approach_distance]
-
+                        apple_approach_position = (np.array(roll_value) + self.approach_distance*unit_vector).tolist()
                         approach_marker = self.create_marker_msg(type=2, position=apple_approach_position, scale=[0.01]*3, color=[0.0,1.0,1.0,1.0])
                         self.apple_markers_publisher.publish(approach_marker)
-
                         self.get_logger().info(f"Sending goal to arm: {apple_approach_position}, {starting_orientation}")
                         self.send_arm_request(ee_location=apple_approach_position, ee_orientation=starting_orientation, move_cartesian=True)
                         
                         # manually label cup engagement
                         self.label_suction_cups()
+
                         # engage fingers - GRIPPER
                         if self.actuation_mode == "fingers" or self.actuation_mode == "dual":
                             self.send_fingers_request(fingers_status=True)
@@ -185,11 +161,9 @@ class User(Node):
 
                         # move away from apple - ARM
                         self.get_logger().info("Retrieving the apple")
-                        # apple_retrieve_pose = [-0.7, -0.45, 1.0]
                         apple_retrieve_position = (np.array(apple_approach_position) + self.retrieve_distance*unit_vector).tolist()
                         retrieve_marker = self.create_marker_msg(type=2, position=apple_retrieve_position, scale=[0.01]*3, color=[0.0,1.0,1.0,1.0])
                         self.apple_markers_publisher.publish(retrieve_marker)
-
                         self.get_logger().info(f"Sending goal to arm: {apple_retrieve_position}, {starting_orientation}")
                         self.send_arm_request(ee_location=apple_retrieve_position, ee_orientation=starting_orientation, move_cartesian=True)
                     
@@ -202,7 +176,9 @@ class User(Node):
                         # turn off vacuum - GRIPPER
                         self.send_vacuum_request(vacuum_status=False)
                         self.get_logger().info("Gripper vacuum off")
+
                         # stop rosbag recording
+
                         # save metadata
 
     ##  ------------- SERVICE CLIENT CALLS ------------- ##
@@ -325,6 +301,19 @@ class User(Node):
         q = quaternion_about_axis(angle, rotation_vector)
 
         return q, center_unit_vector
+    
+    def update_and_publish_apple(self):
+        """Method that grabs the most recent apple location from the parameter
+            and publishes it as a marker"""
+        apple_location = self.get_parameter('apple_location').get_parameter_value().double_array_value.tolist()
+        self.get_logger().info(f"Apple location: {apple_location}")
+        apple_marker = self.create_marker_msg(type=2, position=apple_location, scale=[self.apple_diameter]*3)
+        sampling_sphere = self.create_marker_msg(type=2, position=apple_location, scale=[self.sampling_sphere_diameter]*3, color=[0.0,1.0,0.0,0.3])
+        self.apple_markers_publisher.publish(apple_marker)
+        self.apple_markers_publisher.publish(sampling_sphere)
+        self.get_logger().info("Published apple markers")
+
+        return apple_location
         
     def label_suction_cups(self):
         """Method to allow the user to label the suction cup engagement after
