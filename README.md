@@ -90,17 +90,17 @@ This loads the following scene, showing the UR5e and apple proxy with the TF tre
 
 ### Suction gripper Pyserial interface (optional)
 
-The ROS2 node `suction_gripper` communicates with an Arduino through Pyserial to control the suction gripper vacuum and fingers. When it recieves a service call, it sends an integer between 1-4 corresponding to vacuum on/off and fingers engaged/disengaged. Currently, the Arduino script just contains a dummy framework that can be easily expanded for full gripper control and functionality.
+The `suction_gripper` node communicates with an Arduino through Pyserial to control the gripper vacuum and fingers. When it recieves a service call, it sends an integer between 1-4 corresponding to vacuum on/off and fingers engaged/disengaged. Currently, the Arduino script just contains a dummy framework that can be easily expanded for full gripper control and functionality.
 
 Connect to an Arduino of your choice, and upload `pyserial_test.ino` from the *gripper/arduino* directory using the ArduinoIDE. Ensure the **baud rate** and **port** match the baud and port set in `suction_gripper.py`. This demo is using an Ardunio UNO with a baud rate of 115200 on port /dev/ttyACM0.
 
-To see the Arduino response to a serial command, open the serial monitor and type `<1>`. If everything is set up correctly, the serial monitor will print `Arduino: turning vacuum on`. Once Arduino functionlity is verified, close the IDE.
+To see the Arduino response to a serial command, open the serial monitor and type `<1>`. If everything is set up correctly, the serial monitor will return `Arduino: turning vacuum on`. Once Arduino functionlity is verified, close the IDE.
 
 In one shell, start the suction gripper node:
 
     ros2 run gripper suction_gripper.py
 
-In a second shell, call the gripper vacuum or fingers service:
+In a second shell, call the gripper vacuum or fingers service, e.g:
 
     ros2 service call /set_vacuum_status gripper_msgs/srv/GripperVacuum "{set_vacuum: True}"
 
