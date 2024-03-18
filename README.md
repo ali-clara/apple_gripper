@@ -2,7 +2,8 @@
 
 This is a repository for the ROS2 conversion of Alejo Velasquez's ROS1 apple proxy & gripper framework. The original source code can be found at [github.com/velasale/suction-gripper](https://github.com/velasale/suction-gripper) and is listed under the MIT license.
 
-This repository contains scripts to use Alejo's custom gripper and a UR5e to run proxy apple picking tests. It moves across N sampled "roll" points around the circumference of the apple to test different variables on pick success.
+This repository contains scripts to use Alejo's custom gripper and a UR5e to run proxy apple picking tests. It uses MoveIt2 to move a UR5e end effector to sampled points around the circumference of the apple proxy and attempts a number of picks at each one. This allows us to test the effect of different variables on pick success.
+
 <p align="center">
   <img src="doc/rviz_world.png">
 </p>
@@ -89,24 +90,24 @@ This loads the following scene, showing the UR5e and apple proxy with the TF tre
 
 ### Suction gripper Pyserial interface (optional)
 
-The ROS2 node `suction_gripper` communicates with an Arduino through Pyserial to control the suction gripper vacuum and fingers. When it recieves a service call, it sends an integer between 1-4 corresponding to vacuum on/off and fingers engaged/disengaged. Currently, the Arduino script just contains a dummy framework for controlling the gripper that can easily be built upon.
+The `suction_gripper` node communicates with an Arduino through Pyserial to control the gripper vacuum and fingers. When it recieves a service call, it sends an integer between 1-4 corresponding to vacuum on/off and fingers engaged/disengaged. Currently, the Arduino script just contains a dummy framework that can be easily expanded for full gripper control and functionality.
 
 Connect to an Arduino of your choice, and upload `pyserial_test.ino` from the *gripper/arduino* directory using the ArduinoIDE. Ensure the **baud rate** and **port** match the baud and port set in `suction_gripper.py`. This demo is using an Ardunio UNO with a baud rate of 115200 on port /dev/ttyACM0.
 
-To see the Arduino response to a serial command, open the serial monitor and type `<1>`. If everything is set up correctly, the serial monitor will print `Arduino: turning vacuum on`. Once Arduino functionlity is verified, close the IDE.
+To see the Arduino response to a serial command, open the serial monitor and type `<1>`. If everything is set up correctly, the serial monitor will return `Arduino: turning vacuum on`. Once Arduino functionlity is verified, close the IDE.
 
 In one shell, start the suction gripper node:
 
     ros2 run gripper suction_gripper.py
 
-In a second shell, call the gripper vacuum or fingers service:
+In a second shell, call the gripper vacuum or fingers service, e.g:
 
     ros2 service call /set_vacuum_status gripper_msgs/srv/GripperVacuum "{set_vacuum: True}"
 
 The first shell will log the same serial output as the test with the Arduino IDE.
 
 
-## Running
+## Running the Proxy Pick sequence
 
 Launch the UR robot driver with fake hardware:
 
