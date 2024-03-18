@@ -2,7 +2,8 @@
 
 This is a repository for the ROS2 conversion of Alejo Velasquez's ROS1 apple proxy & gripper framework. The original source code can be found at [github.com/velasale/suction-gripper](https://github.com/velasale/suction-gripper) and is listed under the MIT license.
 
-This repository contains scripts to use Alejo's custom gripper and a UR5e to run proxy apple picking tests. It uses MoveIt2 to move a UR5e end effector to attempt a pick at a number of sampled points around the circumference of the apple, testing different variables on pick success.
+This repository contains scripts to use Alejo's custom gripper and a UR5e to run proxy apple picking tests. It uses MoveIt2 to move a UR5e end effector to sampled points around the circumference of the apple proxy and attempts a number of picks at each one. This allows us to test the effect of different variables on pick success.
+
 <p align="center">
   <img src="doc/rviz_world.png">
 </p>
