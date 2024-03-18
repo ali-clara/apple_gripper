@@ -107,7 +107,7 @@ In a second shell, call the gripper vacuum or fingers service, e.g:
 The first shell will log the same serial output as the test with the Arduino IDE.
 
 
-## Running
+## Running the Proxy Pick sequence
 
 Launch the UR robot driver with fake hardware:
 
