@@ -436,13 +436,9 @@ def main(args=None):
     rclpy.init(args=args)
     # instantiate the class
     my_user = User()
-    # my_user.get_user_info()
+    my_user.get_user_info()
     input("Hit enter to start proxy test: ")
     my_user.proxy_pick_sequence()
-    # hand control over to ROS2
-    # rclpy.spin(my_user)
-    # shutdown cleanly when finished
-    # rclpy.shutdown()
 
 if __name__ == "__main__":
     main()

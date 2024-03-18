@@ -11,6 +11,7 @@ from gripper_msgs.srv import GripperVacuum, GripperFingers
 # standard imports
 import numpy as np
 import serial
+from serial import SerialException
 
 class SuctionGripper(Node):
     def __init__(self):
@@ -21,14 +22,31 @@ class SuctionGripper(Node):
         self.vacuum_service = self.create_service(GripperVacuum, 'set_vacuum_status', self.vacuum_service_callback)
         self.fingers_service = self.create_service(GripperFingers, 'set_fingers_status', self.fingers_service_callback)
 
+        # set up Pyserial
+        arduino_port = "/dev/ttyACM0"
+        baud = 115200
+        try:
+            self.my_serial = serial.Serial(arduino_port, baud)
+            self.get_logger().info(f"Connected to serial port {arduino_port}")
+            self.real_arduino_flag = True
+        except SerialException:
+            self.get_logger().info(f"Could not connect to serial port {arduino_port}. Using fake arduino hardware.")
+            self.real_arduino_flag = False
+            
         # class variables
-        self.vacuum_on = False
-        self.fingers_engaged = False
+        self.start_character = "<"
+        self.end_character = ">"
+        self.vacuum_on_command = "1"
+        self.vacuum_off_command = "2"
+        self.fingers_engaged_command = "3"
+        self.fingers_disengaged_command = "4"
 
-        arduino_port = ""
-        baud = 9600
-        self.my_serial = serial.Serial(arduino_port, baud)
-        self.end_character = "#"
+    def read_serial(self):
+        get_data = self.my_serial.readline()
+        data_string = get_data.decode('utf-8')
+        data_raw = data_string[0:][:-2]
+
+        self.get_logger().info(data_raw)
 
     def vacuum_service_callback(self, request, response):
         """Callback function for the vacuum service. Uses the bool stored in set_vacuum
@@ -36,13 +54,19 @@ class SuctionGripper(Node):
         """
         # if the request is True, turn the vacuum on
         if request.set_vacuum:
-            self.vacuum_on = True
-            self.get_logger().info("Gripper vacuum on")
-            self.my_serial.write("vacuum:on"+self.end_character)
+            # if we're actually connected to an arduino, send the serial message. Otherwise just pretend
+            self.get_logger().info("Sending request: gripper vacuum on")
+            if self.real_arduino_flag:
+                msg_str = self.start_character+self.vacuum_on_command+self.end_character
+                self.my_serial.write(str(msg_str).encode())
+                self.read_serial()
+        # if the request is False, turn the vacuum off
         elif not request.set_vacuum:
-            self.vacuum_on = False
-            self.get_logger().info("Gripper vacuum off"+self.end_character)
-            self.my_serial.write("vacuum:off")
+            self.get_logger().info("Sending request: gripper vacuum off")
+            if self.real_arduino_flag:
+                msg_str = self.start_character+self.vacuum_off_command+self.end_character
+                self.my_serial.write(str(msg_str).encode())
+                self.read_serial()
 
         response.result = True
         return response
@@ -53,13 +77,19 @@ class SuctionGripper(Node):
         """
         # if the request is True, engage the fingers
         if request.set_fingers:
-            self.fingers_engaged = True
-            self.get_logger().info("Fingers engaged"+self.end_character)
-            self.my_serial.write("fingers:on")
+            # like above, if we're actually connected to an arduino, send the serial message. Otherwise just pretend
+            self.get_logger().info("Sending request: engage fingers")
+            if self.real_arduino_flag:
+                msg_str = self.start_character+self.fingers_engaged_command+self.end_character
+                self.my_serial.write(str(msg_str).encode())
+                self.read_serial()
+        # if the request is False, disengage the fingers
         elif not request.set_fingers:
-            self.fingers_engaged = False
-            self.get_logger().info("Fingers disengaged"+self.end_character)
-            self.my_serial.write("fingers:off")
+            self.get_logger().info("Sending request: disengage fingers")
+            if self.real_arduino_flag:
+                msg_str = self.start_character+self.fingers_engaged_command+self.end_character
+                self.my_serial.write(str(msg_str).encode())
+                self.read_serial()
 
         response.result = True
         return response
